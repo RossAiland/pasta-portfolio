@@ -1,0 +1,9 @@
+# Lettura Excel e manipolazione tabelle
+pandas
+openpyxl
+
+# Grafico statico (richiede il programma Graphviz installato sul PC)
+graphviz
+
+# Test
+pytest

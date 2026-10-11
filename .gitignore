@@ -1,0 +1,19 @@
+# Ambiente virtuale e cache di Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Output generati (si rigenerano lanciando il programma)
+output/
+
+# Dati privati: MAI su Git
+data/private/
+*.RData
+.Rhistory
+
+# File temporanei di Excel
+~$*.xlsx
+
+# Impostazioni locali di VSCode
+.vscode/
