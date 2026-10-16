@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pasta"
+version = "0.1.0"
+description = "Draw a company's processes, systems and data flows from an Excel file, and compare them at two dates."
+readme = "README.md"
+requires-python = ">=3.11"   # 3.11 is the first version with tomllib built in
+dependencies = [
+    "pandas>=2.2",      # tables (DataFrame)
+    "openpyxl>=3.1",    # lets pandas read and write .xlsx files
+    "graphviz>=0.20",   # static graph (needs the Graphviz program installed)
+    "pyvis>=0.3",       # interactive HTML graph
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",        # tests
+    "ruff>=0.6",        # linter + formatter
+]
+
+[tool.setuptools]
+packages = ["pasta"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/W: style errors, F: real bugs (unused names...), I: import order,
+# B: common pitfalls, UP: suggest modern Python syntax
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

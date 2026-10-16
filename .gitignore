@@ -4,11 +4,20 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Packaging e cache degli strumenti
+*.egg-info/
+.ruff_cache/
+
 # Output generati (si rigenerano lanciando il programma)
 output/
 
 # Dati privati: MAI su Git
+# Tutti gli Excel in data/ sono ignorati, tranne il file di esempio
+data/*.xlsx
+!data/sample_pastificio.xlsx
 data/private/
+# Configurazione locale (es. che punta a dati veri)
+config.local.toml
 *.RData
 .Rhistory
 
