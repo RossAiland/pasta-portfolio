@@ -1,0 +1,16 @@
+# Pasta configuration.
+# Relative paths start from the folder of this file.
+
+# Excel file to read, and folder where the graphs are written
+input_file = "data/sample_pastificio.xlsx"
+output_dir = "output"
+
+# Date of the graph. Remove this line to use DateReference
+# from the "Parametres" sheet of the Excel file.
+snapshot_date = 2026-10-08
+
+# Optional: draw what changes between two dates.
+# Remove this section to skip the comparison.
+[compare]
+before = 2026-10-08
+after = 2027-06-01
