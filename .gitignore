@@ -12,6 +12,9 @@ data/private/
 *.RData
 .Rhistory
 
+# Note personali di progetto (non pubbliche)
+PIANO.md
+
 # File temporanei di Excel
 ~$*.xlsx
 
