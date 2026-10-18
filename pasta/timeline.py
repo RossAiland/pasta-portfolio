@@ -8,15 +8,15 @@ import pandas as pd
 
 from pasta.loader import InputData
 
-# REGOLA: una riga (nodo o link) esiste in un giorno se
-#     Actif è True  E  DateDebut <= giorno <= DateFin
-# con ENTRAMBI i confini inclusi: il giorno di DateDebut esiste già, il giorno di DateFin
-# esiste ancora (per questo il vecchio sistema finisce il giorno PRIMA del go-live).
-# In più un link esiste solo se esistono ENTRAMBI i suoi nodi: altrimenti Graphviz
-# disegnerebbe una freccia verso un nodo che non c'è (anzi, lo creerebbe vuoto).
+# RULE: a row (node or link) exists on a day if
+#     Actif is True  AND  DateDebut <= day <= DateFin
+# with BOTH bounds included: on the DateDebut day it already exists, on the DateFin day it
+# still exists (that is why the old system ends on the day BEFORE the go-live).
+# On top of that, a link exists only if BOTH its nodes exist: otherwise Graphviz would draw
+# an arrow to a node that is not there (in fact it would create an empty one).
 #
-# Questo modulo lavora su dati GIÀ VALIDATI (validation.py): Actif è sempre True/False e
-# le date non sono mai vuote, quindi qui non serve ricontrollarli.
+# This module works on data that is ALREADY VALIDATED (validation.py): Actif is always
+# True/False and dates are never empty, so there is no need to check them again here.
 
 
 @dataclass
@@ -27,33 +27,33 @@ class Snapshot:
     nodes: pd.DataFrame
     links: pd.DataFrame
 
-    # PROPRIETÀ: un metodo che si usa COME UN CAMPO, senza parentesi: snapshot.subtitle
-    # (non snapshot.subtitle()). Il valore viene calcolato ogni volta dai campi.
-    # @property è un decoratore, come @dataclass. In C++ sarebbe un metodo getter const.
+    # PROPERTY: a method used LIKE A FIELD, without parentheses: snapshot.subtitle
+    # (not snapshot.subtitle()). The value is computed from the fields each time.
+    # @property is a decorator, like @dataclass. In C++ it would be a const getter method.
     @property
     def subtitle(self) -> str:
         """Text shown under the title of the drawing."""
-        # FORMATO DELLA DATA nella f-string: dopo ":" si scrive come formattarla.
-        # %d = giorno, %m = mese, %Y = anno a 4 cifre -> "08.10.2026" (formato svizzero).
-        # In C++ sarebbe std::format("{:%d.%m.%Y}", day).
+        # DATE FORMAT in an f-string: after ":" you write how to format it.
+        # %d = day, %m = month, %Y = 4-digit year -> "08.10.2026" (Swiss format).
+        # In C++ it would be std::format("{:%d.%m.%Y}", day).
         return f"{self.day:%d.%m.%Y}"
 
 
 # ---------------------------------------------------------------------------------------
-# Confronto tra due date
+# Comparing two dates
 # ---------------------------------------------------------------------------------------
-# ALGORITMO (teoria degli insiemi): prima = chiavi esistenti alla data "before",
-# dopo = chiavi esistenti alla data "after".
-#   unchanged = prima & dopo   (intersezione: c'è in entrambe)
-#   added     = dopo - prima   (differenza: c'è solo dopo)
-#   removed   = prima - dopo   (c'è solo prima)
-# CHIAVI: un nodo è identificato dal suo Id; un link dalla tupla (Source, Cible, TypeFlux)
-# (i link non hanno un Id nell'Excel).
+# ALGORITHM (set theory): before = keys existing on the "before" date,
+# after = keys existing on the "after" date.
+#   unchanged = before & after   (intersection: present in both)
+#   added     = after - before   (difference: present only after)
+#   removed   = before - after   (present only before)
+# KEYS: a node is identified by its Id; a link by the tuple (Source, Cible, TypeFlux)
+# (links have no Id in the Excel file).
 
 
-# ENUM: un insieme CHIUSO di valori con un nome, come "enum class" in C++. Rispetto alle
-# stringhe evita errori di battitura: Status.ADDED scritto male dà subito un errore, mentre
-# "addded" passerebbe inosservato. Il valore ("added") serve quando va mostrato come testo.
+# ENUM: a CLOSED set of named values, like "enum class" in C++. Compared to plain strings it
+# prevents typos: a misspelled Status.ADDED fails immediately, while "addded" would go
+# unnoticed. The value ("added") is used when it has to be shown as text.
 class Status(Enum):
     UNCHANGED = "unchanged"
     ADDED = "added"
@@ -76,7 +76,7 @@ class Comparison:
     @property
     def subtitle(self) -> str:
         """Text shown under the title of the drawing."""
-        # "→" è il carattere freccia →, scritto con il suo codice Unicode.
+        # "→" is the arrow character; Python 3 strings are Unicode, so it can be written as is.
         return f"Changes {self.before:%d.%m.%Y} → {self.after:%d.%m.%Y}"
 
 
@@ -94,9 +94,9 @@ def compare(data: InputData, before: date, after: date) -> Comparison:
 
 def _keys(table: pd.DataFrame, key: list[str]) -> list[tuple]:
     """Return the key of every row, as a tuple (one per row, in the same order)."""
-    # fillna(""): una cella vuota (NaN) nella chiave diventa "". Serve perché NaN != NaN:
-    # due link con TypeFlux vuoto non risulterebbero "uguali" in un insieme.
-    # itertuples(index=False, name=None) dà ogni riga come una TUPLA semplice di valori.
+    # fillna(""): an empty cell (NaN) in the key becomes "". Needed because NaN != NaN:
+    # two links with an empty TypeFlux would not be "equal" in a set.
+    # itertuples(index=False, name=None) gives each row as a plain TUPLE of values.
     return list(table[key].fillna("").itertuples(index=False, name=None))
 
 
@@ -105,20 +105,20 @@ def _union_with_status(old: pd.DataFrame, new: pd.DataFrame, key: list[str]) -> 
     old_keys = set(_keys(old, key))
     new_keys = set(_keys(new, key))
 
-    # Righe di "dopo": unchanged se la chiave c'era anche prima, altrimenti added.
-    # (Per le righe unchanged teniamo quella di "dopo": è lo stato più recente.)
+    # Rows of "after": unchanged if the key was there before too, otherwise added.
+    # (For unchanged rows we keep the "after" one: it is the most recent state.)
     new_status = [
         Status.UNCHANGED if row_key in old_keys else Status.ADDED for row_key in _keys(new, key)
     ]
-    # Righe di "prima" la cui chiave NON c'è più dopo: removed.
-    # Maschera da una lista di booleani: pd.Series(lista, index=...) usa gli stessi indici
-    # della tabella, così .loc[maschera] seleziona le righe giuste.
+    # Rows of "before" whose key is NO longer there after: removed.
+    # Mask from a list of booleans: pd.Series(list, index=...) uses the same indexes as the
+    # table, so .loc[mask] selects the right rows.
     gone = pd.Series([row_key not in new_keys for row_key in _keys(old, key)], index=old.index)
     removed = old.loc[gone]
 
-    # assign(Colonna=valori) restituisce una NUOVA tabella con la colonna in più.
-    # pd.concat([a, b]) mette le due tabelle una sotto l'altra (come unire due vector);
-    # ignore_index=True rinumera le righe 0, 1, 2... (gli indici originali qui non servono).
+    # assign(Column=values) returns a NEW table with the extra column.
+    # pd.concat([a, b]) puts the two tables one below the other (like joining two vectors);
+    # ignore_index=True renumbers the rows 0, 1, 2... (the original indexes are not needed).
     return pd.concat(
         [new.assign(Status=new_status), removed.assign(Status=Status.REMOVED)],
         ignore_index=True,
@@ -127,12 +127,12 @@ def _union_with_status(old: pd.DataFrame, new: pd.DataFrame, key: list[str]) -> 
 
 def take_snapshot(data: InputData, day: date) -> Snapshot:
     """Return the nodes and links that exist on the given day."""
-    # .loc[maschera] tiene solo le righe in cui la maschera vale True (e conserva gli indici).
+    # .loc[mask] keeps only the rows where the mask is True (and keeps the indexes).
     nodes = data.nodes.loc[_exists_on(data.nodes, day)]
     links = data.links.loc[_exists_on(data.links, day)]
 
-    # isin(nodes["Id"]): True se Source (o Cible) è tra gli Id dei nodi VISIBILI.
-    # Il link resta solo se lo sono entrambi.
+    # isin(nodes["Id"]): True if Source (or Cible) is among the Ids of the VISIBLE nodes.
+    # The link stays only if both are.
     both_ends_visible = links["Source"].isin(nodes["Id"]) & links["Cible"].isin(nodes["Id"])
     links = links.loc[both_ends_visible]
 
@@ -141,13 +141,13 @@ def take_snapshot(data: InputData, day: date) -> Snapshot:
 
 def _exists_on(table: pd.DataFrame, day: date) -> pd.Series:
     """Return a mask: True for the rows that exist on the given day."""
-    # CONFRONTO VETTORIALE: "colonna <= day" confronta OGNI cella della colonna con la stessa
-    # data e restituisce una maschera di True/False (una per riga), senza scrivere un ciclo.
-    # astype(bool): dopo il loader la colonna Actif può avere dtype "object" (contenitore
-    # generico); per combinarla con "&" la vogliamo di dtype bool vero e proprio.
-    # Le tre condizioni sono combinate con "&" (and elemento per elemento). Ognuna ha la sua
-    # variabile, così si leggono meglio. Scritte in una riga sola, ogni confronto andrebbe
-    # tra PARENTESI, perché "&" ha precedenza più alta di "<=" e ">=":
+    # VECTORIZED COMPARISON: "column <= day" compares EVERY cell of the column with the same
+    # date and returns a mask of True/False (one per row), without writing a loop.
+    # astype(bool): after the loader the Actif column may have dtype "object" (a generic
+    # container); to combine it with "&" we want a real bool dtype.
+    # The three conditions are combined with "&" (element-wise and). Each one has its own
+    # variable, so they read better. Written on a single line, every comparison would need
+    # PARENTHESES, because "&" has a higher precedence than "<=" and ">=":
     #     active & (table["DateDebut"] <= day) & (table["DateFin"] >= day)
     active = table["Actif"].astype(bool)
     started = table["DateDebut"] <= day

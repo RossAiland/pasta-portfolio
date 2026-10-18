@@ -1,1 +1,1 @@
-"""Pasta: cartografia dei sistemi informativi e dei flussi di dati nel tempo."""
+"""Pasta: map a company's processes, IT systems and data flows over time."""

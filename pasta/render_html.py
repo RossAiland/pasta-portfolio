@@ -9,37 +9,37 @@ from pyvis.network import Network
 
 from pasta.model import Graph
 
-# COME FUNZIONA PYVIS: è una libreria Python che genera una pagina HTML con dentro VIS.JS,
-# una libreria JavaScript che disegna grafi nel browser. Nel browser si può fare zoom
-# (rotella), trascinare i nodi e il grafo, e passare il mouse per vedere i tooltip.
-# cdn_resources="in_line": tutto il JavaScript di vis.js viene COPIATO nel file, quindi
-# l'HTML è autonomo (si apre anche offline e si può mandare per email). Pesa circa 700 KB.
+# HOW PYVIS WORKS: it is a Python library that generates an HTML page containing VIS.JS,
+# a JavaScript library that draws graphs in the browser. In the browser you can zoom
+# (mouse wheel), drag the nodes and the graph, and hover to see the tooltips.
+# cdn_resources="in_line": all of vis.js' JavaScript is COPIED into the file, so the HTML is
+# self-contained (it opens offline and can be sent by email). It weighs about 700 KB.
 #
-# UN'INTERFACCIA, DUE IMPLEMENTAZIONI: questo modulo riceve LO STESSO Graph di
-# render_graphviz.py e lo traduce nel "linguaggio" di vis.js. Timeline e modello non sono
-# stati toccati: è la prova che la separazione fatta con model.py funziona.
+# ONE INTERFACE, TWO IMPLEMENTATIONS: this module receives THE SAME Graph as
+# render_graphviz.py and translates it into vis.js' "language". Timeline and model were not
+# touched: proof that the separation made with model.py works.
 
-# Forme di Graphviz -> forme di vis.js. Le forme sconosciute diventano "box" (.get con default).
+# Graphviz shapes -> vis.js shapes. Unknown shapes become "box" (.get with a default).
 SHAPES = {"rectangle": "box", "box": "box", "ellipse": "ellipse", "circle": "circle"}
-# rankdir di Graphviz -> direzione del layout gerarchico di vis.js (UD = up-down, ecc.).
+# Graphviz rankdir -> direction of vis.js' hierarchical layout (UD = up-down, etc.).
 DIRECTIONS = {"LR": "LR", "RL": "RL", "TB": "UD", "BT": "DU"}
 
-# Il template di pyvis carica BOOTSTRAP (una libreria di stili) da internet anche con
-# "in_line": serve solo a un bordo decorativo. Lo togliamo, così la pagina non fa nessuna
-# richiesta a siti esterni.
-# ESPRESSIONE REGOLARE (modulo "re" della libreria standard): un "modello" di testo da cercare.
-#   <(link|script)  = "<link" oppure "<script"
-#   [^>]*           = qualsiasi carattere tranne ">", ripetuto (cioè il resto del tag)
-#   bootstrap       = deve contenere la parola "bootstrap"
-#   (\s*</script>)? = eventualmente seguito da spazi e "</script>" (? = facoltativo)
-# re.compile prepara il modello una volta sola; .sub("", testo) sostituisce ogni occorrenza
-# con "" (cioè la cancella). In C++: std::regex e std::regex_replace.
+# The pyvis template loads BOOTSTRAP (a styling library) from the internet even with
+# "in_line": it is only used for a decorative border. We remove it, so the page makes no
+# request to external sites.
+# REGULAR EXPRESSION (standard library module "re"): a text "pattern" to search for.
+#   <(link|script)  = "<link" or "<script"
+#   [^>]*           = any character except ">", repeated (i.e. the rest of the tag)
+#   bootstrap       = must contain the word "bootstrap"
+#   (\s*</script>)? = possibly followed by spaces and "</script>" (? = optional)
+# re.compile prepares the pattern once; .sub("", text) replaces every match with ""
+# (i.e. deletes it). In C++: std::regex and std::regex_replace.
 BOOTSTRAP_TAGS = re.compile(r"<(link|script)[^>]*bootstrap[^>]*>(\s*</script>)?")
 
 
 def to_html(graph: Graph) -> str:
     """Build the interactive web page of the graph."""
-    # height="85vh": l'85% dell'altezza della finestra del browser (vh = viewport height).
+    # height="85vh": 85% of the height of the browser window (vh = viewport height).
     net = Network(height="85vh", width="100%", directed=True, cdn_resources="in_line")
 
     for node in graph.nodes:
@@ -47,13 +47,13 @@ def to_html(graph: Graph) -> str:
             node.id,
             label=node.label,
             shape=SHAPES.get(node.shape, "box"),
-            # In vis.js il colore di un nodo è un DIZIONARIO: bordo e sfondo.
+            # In vis.js the color of a node is a DICTIONARY: border and background.
             color={"border": node.color, "background": node.fillcolor},
             borderWidth=node.penwidth,
             shapeProperties={
-                # "x in testo": True se x è contenuto nella stringa (es. "rounded,filled").
-                "borderDashes": "dashed" in node.style,  # nodo removed: bordo tratteggiato
-                "borderRadius": 6 if "rounded" in node.style else 0,  # angoli arrotondati
+                # "x in text": True if x is contained in the string (e.g. "rounded,filled").
+                "borderDashes": "dashed" in node.style,  # removed node: dashed border
+                "borderRadius": 6 if "rounded" in node.style else 0,  # rounded corners
             },
             title=f"{node.kind} - {node.domain or ''}",  # tooltip
             font={"face": graph.fontname},
@@ -66,41 +66,42 @@ def to_html(graph: Graph) -> str:
             label=edge.label or "",
             color=edge.color,
             width=edge.penwidth,
-            dashes=edge.style in ("dashed", "dotted"),  # "in" su una tupla: è uno di questi?
+            dashes=edge.style in ("dashed", "dotted"),  # "in" on a tuple: is it one of these?
             arrows="to, from" if edge.direction == "both" else "to",
             title=edge.data or "",  # tooltip
             font={"face": graph.fontname, "size": 11},
         )
 
-    # Le OPZIONI di vis.js si passano come testo JSON. json.dumps trasforma un dizionario
-    # Python in JSON: True diventa true, None diventa null...
+    # vis.js OPTIONS are passed as JSON text. json.dumps turns a Python dictionary into JSON:
+    # True becomes true, None becomes null...
     options = {
         "layout": {
             "hierarchical": {
-                "enabled": True,  # a livelli, come Graphviz "dot"
+                "enabled": True,  # in levels, like Graphviz "dot"
                 "direction": DIRECTIONS.get(graph.rankdir, "LR"),
-                "sortMethod": "directed",  # i livelli seguono il verso delle frecce
+                "sortMethod": "directed",  # levels follow the direction of the arrows
                 "levelSeparation": 220,
                 "nodeSpacing": 110,
             }
         },
-        "physics": {"enabled": False},  # i nodi restano dove li mette il layout
+        "physics": {"enabled": False},  # nodes stay where the layout puts them
         "edges": {"smooth": {"type": "cubicBezier", "forceDirection": "horizontal"}},
-        "interaction": {"hover": True},  # evidenzia ciò che sta sotto il mouse
+        "interaction": {"hover": True},  # highlight what is under the mouse
     }
     net.set_options(json.dumps(options))
 
     html = BOOTSTRAP_TAGS.sub("", net.generate_html())
-    # Titolo e legenda in cima alla pagina: subito dopo il tag <body> (count=1: solo il primo).
+    # Title and legend at the top of the page: right after the <body> tag (count=1: only the
+    # first one).
     return html.replace("<body>", "<body>\n" + _header(graph), 1)
 
 
 def _header(graph: Graph) -> str:
     """Return the HTML block shown above the graph: title, subtitle and legend."""
-    # Anche qui i testi che vengono dai dati vanno protetti con html.escape (& < > ").
+    # Here too, text coming from the data must be escaped with html.escape (& < > ").
     title = "<br>".join(escape(line) for line in graph.title.split("\n"))
 
-    # Una voce di legenda = un quadratino colorato + il testo, come nel disegno SVG.
+    # A legend entry = a small colored square + the text, as in the SVG drawing.
     items = "".join(
         '<span class="pasta-item">'
         f'<span class="pasta-swatch" style="border-color:{escape(entry.color)};'
@@ -109,9 +110,9 @@ def _header(graph: Graph) -> str:
     )
     legend = f'<div class="pasta-legend"><b>Legend</b>{items}</div>' if graph.legend else ""
 
-    # Stringa su più righe con """...""": qui è un pezzo di HTML con un po' di CSS (lo stile
-    # della pagina). Le parentesi graffe del CSS vanno RADDOPPIATE ({{ }}) dentro una f-string,
-    # altrimenti Python le scambierebbe per un'espressione da inserire.
+    # Multi-line string with """...""": here a piece of HTML with some CSS (the page style).
+    # The CSS curly braces must be DOUBLED ({{ }}) inside an f-string, otherwise Python would
+    # take them for an expression to insert.
     return f"""
 <style>
   .pasta-header {{ font-family: {escape(graph.fontname)}, sans-serif; text-align: center; }}
@@ -134,7 +135,7 @@ def _header(graph: Graph) -> str:
 def render_html(graph: Graph, output_file: Path) -> Path:
     """Write the interactive web page of the graph and return its path."""
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    # Qui il risultato è TESTO (non bytes come per l'SVG): si scrive con write_text, in UTF-8
-    # così gli accenti ("Système") restano corretti.
+    # Here the result is TEXT (not bytes as for the SVG): it is written with write_text, in
+    # UTF-8 so that accents ("Système") stay correct.
     output_file.write_text(to_html(graph), encoding="utf-8")
     return output_file

@@ -1,31 +1,32 @@
-# Ambiente virtuale e cache di Python
+# Virtual environment and Python caches
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 
-# Packaging e cache degli strumenti
+# Packaging and tool caches
 *.egg-info/
 .ruff_cache/
 
-# Output generati (si rigenerano lanciando il programma)
+# Generated output (recreated by running the program)
 output/
 
-# Dati privati: MAI su Git
-# Tutti gli Excel in data/ sono ignorati, tranne il file di esempio
+# Private data: NEVER in Git
+# Every Excel file in data/ is ignored, except the sample one
 data/*.xlsx
 !data/sample_pastificio.xlsx
 data/private/
-# Configurazione locale (es. che punta a dati veri)
+# Local configuration (e.g. pointing to real data)
 config.local.toml
 *.RData
 .Rhistory
 
-# Note personali di progetto (non pubbliche)
+# Personal, non-public notes
 PIANO.md
+appunti_it/
 
-# File temporanei di Excel
+# Excel temporary files
 ~$*.xlsx
 
-# Impostazioni locali di VSCode
+# Local VSCode settings
 .vscode/

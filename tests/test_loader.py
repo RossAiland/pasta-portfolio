@@ -8,16 +8,16 @@ import pytest
 
 from pasta.loader import LoadError, load_excel
 
-# Il file di esempio vero: tests/ -> cartella del progetto -> data/
+# The real sample file: tests/ -> project folder -> data/
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
 
 START = date(2026, 1, 1)
 END = date(2100, 12, 31)
 
 
-# Per i casi particolari non usiamo il file di esempio: costruiamo al volo un Excel MINIMO
-# (una riga per foglio) e poi cambiamo solo la parte che ci interessa. Così ogni test
-# mostra chiaramente cosa sta verificando.
+# For special cases we do not use the sample file: we build a MINIMAL Excel file on the fly
+# (one row per sheet) and then change only the part we care about. This way each test shows
+# clearly what it is checking.
 def minimal_sheets() -> dict[str, pd.DataFrame]:
     """Return the smallest valid content: one row per sheet."""
     return {
@@ -50,9 +50,9 @@ def test_sample_file_is_read() -> None:
 def test_dates_become_date_objects(tmp_path: Path) -> None:
     data = load_excel(write_excel(tmp_path / "in.xlsx", minimal_sheets()))
 
-    value = data.nodes["DateDebut"].iloc[0]  # .iloc[0] = il valore della PRIMA riga
-    # type(value) is date: controlla che sia proprio una date e non un Timestamp/datetime
-    # (isinstance non basterebbe: un datetime È anche una date, per ereditarietà).
+    value = data.nodes["DateDebut"].iloc[0]  # .iloc[0] = the value of the FIRST row
+    # type(value) is date: checks that it really is a date and not a Timestamp/datetime
+    # (isinstance would not be enough: a datetime IS also a date, by inheritance).
     assert type(value) is date
     assert value == START
     assert type(data.parameters["DateReference"]) is date
@@ -60,7 +60,7 @@ def test_dates_become_date_objects(tmp_path: Path) -> None:
 
 def test_invalid_date_becomes_empty(tmp_path: Path) -> None:
     sheets = minimal_sheets()
-    # .loc[riga, colonna] = valore: scrive in una cella precisa (riga con indice 0).
+    # .loc[row, column] = value: writes into one specific cell (the row with index 0).
     sheets["Noeuds"].loc[0, "DateFin"] = "not a date"
 
     data = load_excel(write_excel(tmp_path / "in.xlsx", sheets))
@@ -70,7 +70,7 @@ def test_invalid_date_becomes_empty(tmp_path: Path) -> None:
 
 def test_empty_rows_are_removed_and_row_numbers_kept(tmp_path: Path) -> None:
     sheets = minimal_sheets()
-    # Tre righe: A, una riga tutta vuota (None in ogni colonna), B.
+    # Three rows: A, a completely empty row (None in every column), B.
     empty = {"Id": None, "Actif": None, "DateDebut": None, "DateFin": None}
     b_row = {"Id": "B", "Actif": True, "DateDebut": START, "DateFin": END}
     sheets["Noeuds"] = pd.DataFrame(
@@ -80,13 +80,13 @@ def test_empty_rows_are_removed_and_row_numbers_kept(tmp_path: Path) -> None:
     data = load_excel(write_excel(tmp_path / "in.xlsx", sheets))
 
     assert list(data.nodes["Id"]) == ["A", "B"]
-    # B conserva l'indice 2 (riga Excel 4): servirà per i messaggi di errore.
+    # B keeps index 2 (Excel row 4): needed for the error messages.
     assert list(data.nodes.index) == [0, 2]
 
 
 def test_row_with_only_actif_is_kept(tmp_path: Path) -> None:
-    # Regola "A": una riga con solo Actif compilato NON è vuota. Il loader la tiene, e sarà
-    # validation.py a segnalare Id e date mancanti.
+    # Rule "A": a row with only Actif filled in is NOT empty. The loader keeps it, and
+    # validation.py will report the missing Id and dates.
     sheets = minimal_sheets()
     only_actif = {"Id": None, "Actif": True, "DateDebut": None, "DateFin": None}
     sheets["Noeuds"] = pd.DataFrame(
@@ -101,8 +101,8 @@ def test_row_with_only_actif_is_kept(tmp_path: Path) -> None:
 
 def test_actif_values_are_true_or_false(tmp_path: Path) -> None:
     sheets = minimal_sheets()
-    # Con una cella vuota nella colonna, pandas legge True/False come 1.0/0.0:
-    # il loader deve riportarli a True/False.
+    # With an empty cell in the column, pandas reads True/False as 1.0/0.0:
+    # the loader must turn them back into True/False.
     sheets["Noeuds"] = pd.DataFrame(
         [
             {"Id": "A", "Actif": True, "DateDebut": START, "DateFin": END},
@@ -114,19 +114,19 @@ def test_actif_values_are_true_or_false(tmp_path: Path) -> None:
     data = load_excel(write_excel(tmp_path / "in.xlsx", sheets))
 
     actif = data.nodes["Actif"]
-    # "is True" e non "== True": deve essere proprio il booleano, non 1.0.
+    # "is True" rather than "== True": it must really be the boolean, not 1.0.
     assert actif.iloc[0] is True
     assert actif.iloc[1] is False
 
 
 def test_empty_actif_is_not_guessed(tmp_path: Path) -> None:
-    # Actif vuoto in una riga piena = errore di compilazione: il loader NON deve inventare
-    # un valore. Resta vuoto, e validation.py fermerà il programma.
+    # An empty Actif in a filled row = a data entry mistake: the loader must NOT invent a
+    # value. It stays empty, and validation.py will stop the program.
     sheets = minimal_sheets()
-    # NON si può scrivere sheets["Noeuds"].loc[0, "Actif"] = None: la colonna ha dtype bool,
-    # e pandas 3 vieta di metterci un valore vuoto (TypeError "Invalid value 'nan' for dtype
-    # 'bool'"; pandas 2 cambiava il dtype da solo con un avviso). Quindi creiamo la tabella
-    # già con la cella vuota.
+    # You CANNOT write sheets["Noeuds"].loc[0, "Actif"] = None: the column has dtype bool,
+    # and pandas 3 forbids putting an empty value in it (TypeError "Invalid value 'nan' for
+    # dtype 'bool'"; pandas 2 changed the dtype by itself with a warning). So the table is
+    # created with the empty cell already in it.
     sheets["Noeuds"] = pd.DataFrame(
         [{"Id": "A", "Actif": None, "DateDebut": START, "DateFin": END}]
     )
@@ -138,7 +138,7 @@ def test_empty_actif_is_not_guessed(tmp_path: Path) -> None:
 
 def test_missing_sheet_is_rejected(tmp_path: Path) -> None:
     sheets = minimal_sheets()
-    del sheets["Liens"]  # "del" toglie una chiave dal dizionario
+    del sheets["Liens"]  # "del" removes a key from the dictionary
 
     with pytest.raises(LoadError, match="Liens"):
         load_excel(write_excel(tmp_path / "in.xlsx", sheets))

@@ -1,19 +1,19 @@
 """Command line entry point: python -m pasta [--config FILE]."""
 
-# COME FUNZIONA "python -m pasta": Python cerca nel package "pasta" un file chiamato
-# __main__.py e lo esegue. È il PUNTO DI INGRESSO del programma (come il file con
+# HOW "python -m pasta" WORKS: Python looks for a file called __main__.py in the "pasta"
+# package and runs it. It is the ENTRY POINT of the program (like the file with
 # "int main()" in C++).
 #
-# DUE FUNZIONI SEPARATE:
-# - run(config_path): fa il lavoro vero (legge, valida, disegna) e restituisce i file scritti.
-#   Se qualcosa va storto SOLLEVA un'eccezione: è facile da testare.
-# - main(argv): lo strato che parla con l'utente. Legge gli argomenti, chiama run, CATTURA
-#   gli errori "previsti" (config sbagliato, Excel mancante, dati non validi, Graphviz non
-#   installato) e stampa un messaggio chiaro invece della traccia illeggibile di Python.
-#   Restituisce il CODICE DI USCITA: 0 = tutto bene, 1 = errore (come "return 1" da main()
-#   in C++; script e altri programmi lo usano per sapere se è andata bene).
-# Gli errori IMPREVISTI (bug del programma) non vengono catturati: lì la traccia completa
-# serve proprio a capire cosa è successo.
+# TWO SEPARATE FUNCTIONS:
+# - run(config_path): does the real work (read, validate, draw) and returns the files written.
+#   If something goes wrong it RAISES an exception: easy to test.
+# - main(argv): the layer that talks to the user. It reads the arguments, calls run, CATCHES
+#   the "expected" errors (wrong config, missing Excel file, invalid data, Graphviz not
+#   installed) and prints a clear message instead of Python's unreadable traceback.
+#   It returns the EXIT CODE: 0 = all good, 1 = error (like "return 1" from main() in C++;
+#   scripts and other programs use it to know whether it went well).
+# UNEXPECTED errors (bugs in the program) are not caught: there the full traceback is exactly
+# what you need to understand what happened.
 
 import argparse
 import sys
@@ -32,9 +32,9 @@ from pasta.validation import DataValidationError, validate
 
 DEFAULT_CONFIG = Path("config.toml")
 
-# TUPLA DI ECCEZIONI: "except (A, B, C)" cattura uno qualsiasi di questi tipi, come più
-# blocchi catch in C++ che fanno la stessa cosa.
-# graphviz.ExecutableNotFound arriva se il programma Graphviz (dot.exe) non è installato.
+# TUPLE OF EXCEPTIONS: "except (A, B, C)" catches any of these types, like several C++ catch
+# blocks doing the same thing.
+# graphviz.ExecutableNotFound is raised if the Graphviz program (dot.exe) is not installed.
 EXPECTED_ERRORS = (ConfigError, LoadError, DataValidationError, graphviz.ExecutableNotFound)
 
 
@@ -44,8 +44,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         written = run(args.config)
     except EXPECTED_ERRORS as error:
-        # file=sys.stderr: gli errori vanno sullo "standard error", non sullo standard output
-        # (come std::cerr invece di std::cout in C++).
+        # file=sys.stderr: errors go to "standard error", not to standard output
+        # (like std::cerr instead of std::cout in C++).
         print(f"Error: {error}", file=sys.stderr)
         return 1
     for path in written:
@@ -57,32 +57,32 @@ def run(config_path: Path) -> list[Path]:
     """Read the configuration and the Excel file, check them, draw the graph(s)."""
     config = load_config(config_path)
     data = load_excel(config.input_file)
-    validate(data)  # si ferma qui (DataValidationError) se l'Excel ha errori
+    validate(data)  # stops here (DataValidationError) if the Excel file has errors
 
-    # 1. Il grafo a una data.
-    # "a or b": la data del config, oppure (se è None) DateReference del foglio Parametres.
+    # 1. The graph on one date.
+    # "a or b": the date from the config, or (if it is None) DateReference from Parametres.
     day = config.snapshot_date or _date_reference(data.parameters)
     graph = build_graph(take_snapshot(data, day), data.parameters)
-    # Il nome del file contiene la data in formato ANNO-MESE-GIORNO: così, in ordine
-    # alfabetico, i file risultano anche in ordine di data.
+    # The file name contains the date as YEAR-MONTH-DAY: this way, in alphabetical order,
+    # the files are also in date order.
     written = _draw(graph, config.output_dir, f"snapshot_{day:%Y-%m-%d}")
 
-    # 2. Il confronto tra due date, solo se il config ha la sezione [compare].
-    #    config.py garantisce che before e after ci sono entrambe o mancano entrambe.
+    # 2. The comparison between two dates, only if the config has a [compare] section.
+    #    config.py guarantees that before and after are either both present or both missing.
     if config.compare_before and config.compare_after:
         before, after = config.compare_before, config.compare_after
         comparison = build_graph(compare(data, before, after), data.parameters)
         name = f"compare_{before:%Y-%m-%d}_{after:%Y-%m-%d}"
-        # "+=" su una lista aggiunge in fondo TUTTI gli elementi dell'altra lista
-        # (come vector::insert(end, ...) in C++).
+        # "+=" on a list appends ALL the elements of the other list at the end
+        # (like vector::insert(end, ...) in C++).
         written += _draw(comparison, config.output_dir, name)
     return written
 
 
 def _draw(graph: Graph, folder: Path, name: str) -> list[Path]:
     """Draw the graph twice: static image (SVG) and interactive page (HTML)."""
-    # Stesso Graph, due disegnatori: è qui che si vede l'idea "un'interfaccia, due
-    # implementazioni" del modello.
+    # Same Graph, two renderers: this is where the model's "one interface, two
+    # implementations" idea shows.
     return [
         render_svg(graph, folder / f"{name}.svg"),
         render_html(graph, folder / f"{name}.html"),
@@ -101,27 +101,27 @@ def _date_reference(parameters: dict[str, object]) -> date:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Read the command line arguments."""
-    # ARGPARSE (libreria standard) legge gli argomenti della riga di comando, controlla che
-    # siano giusti e genera da solo l'aiuto: "python -m pasta --help".
-    # In C++ dovresti leggere argc/argv a mano.
+    # ARGPARSE (standard library) reads the command line arguments, checks them and builds
+    # the help by itself: "python -m pasta --help".
+    # In C++ you would have to read argc/argv by hand.
     parser = argparse.ArgumentParser(
         prog="python -m pasta",
         description="Draw a company's processes, systems and data flows from an Excel file.",
     )
-    # type=Path: il testo scritto dall'utente viene convertito subito in un Path.
+    # type=Path: the text typed by the user is converted to a Path right away.
     parser.add_argument(
         "--config",
         type=Path,
         default=DEFAULT_CONFIG,
         help=f"configuration file (default: {DEFAULT_CONFIG})",
     )
-    # argv=None: argparse legge i VERI argomenti del terminale (sys.argv). Nei test invece
-    # passiamo una lista, es. ["--config", "x.toml"], senza bisogno di un terminale.
+    # argv=None: argparse reads the REAL terminal arguments (sys.argv). Tests pass a list
+    # instead, e.g. ["--config", "x.toml"], without needing a terminal.
     return parser.parse_args(argv)
 
 
-# Come nel generatore dei dati: questo blocco gira solo se il file viene ESEGUITO
-# (python -m pasta), non se viene importato (es. dai test).
-# sys.exit(codice) termina il programma restituendo il codice di uscita al terminale.
+# As in the sample data generator: this block runs only when the file is EXECUTED
+# (python -m pasta), not when it is imported (e.g. by the tests).
+# sys.exit(code) ends the program and returns the exit code to the terminal.
 if __name__ == "__main__":
     sys.exit(main())

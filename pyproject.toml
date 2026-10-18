@@ -27,15 +27,12 @@ packages = ["pasta"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["appunti_it"]  # personal study copy, not part of the project
 
 [tool.ruff.lint]
 # E/W: style errors, F: real bugs (unused names...), I: import order,
 # B: common pitfalls, UP: suggest modern Python syntax
 select = ["E", "W", "F", "I", "B", "UP"]
-
-[tool.ruff.lint.per-file-ignores]
-# W291 (trailing whitespace) only in the author's study notes inside this file
-"scripts/make_sample_data.py" = ["W291"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

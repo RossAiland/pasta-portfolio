@@ -11,10 +11,10 @@ from pasta.timeline import Comparison, Snapshot, Status, compare, take_snapshot
 
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
 
-# Date chiave dei dati di esempio (progetto "Online shop"):
-#   SHOP (WebShop) esiste dal 2027-03-01; SHEETS (fogli Excel) fino al 2027-03-31;
-#   la migrazione SHEETS -> SHOP vale dal 2027-03-01 al 2027-03-31;
-#   go-live il 2027-04-01: da quel giorno P_ORDERS usa SHOP.
+# Key dates of the sample data ("Online shop" project):
+#   SHOP (WebShop) exists from 2027-03-01; SHEETS (spreadsheets) until 2027-03-31;
+#   the migration SHEETS -> SHOP runs from 2027-03-01 to 2027-03-31;
+#   go-live on 2027-04-01: from that day P_ORDERS uses SHOP.
 ALL_NODES = {
     "MP_PROD",
     "MP_SALES",
@@ -34,26 +34,26 @@ def data() -> InputData:
     return load_excel(SAMPLE_FILE)
 
 
-# INSIEMI (set): {a, b, c} è una collezione SENZA ordine e SENZA duplicati, come std::set
-# (ma basata su hash, quindi più simile a std::unordered_set). Due insiemi sono uguali se
-# contengono gli stessi elementi, in qualunque ordine: perfetto per dire "questi nodi ci
-# sono" senza preoccuparsi dell'ordine delle righe.
-# Operazioni utili: "x in s" (appartenenza), s1 - s2 (differenza), s1 | s2 (unione).
-# ATTENZIONE: {} da solo è un dizionario vuoto; l'insieme vuoto si scrive set().
+# SETS: {a, b, c} is a collection WITHOUT order and WITHOUT duplicates, like std::set
+# (but hash-based, so closer to std::unordered_set). Two sets are equal if they contain the
+# same elements, in any order: perfect for saying "these nodes are there" without caring
+# about the order of the rows.
+# Useful operations: "x in s" (membership), s1 - s2 (difference), s1 | s2 (union).
+# WARNING: {} alone is an empty dictionary; the empty set is written set().
 def node_ids(snapshot: Snapshot) -> set[str]:
     return set(snapshot.nodes["Id"])
 
 
 def link_pairs(snapshot: Snapshot) -> set[tuple[str, str]]:
-    # Un link è identificato qui dalla coppia (Source, Cible). Le tuple possono stare in un
-    # insieme perché sono IMMUTABILI (le liste no: un elemento di un set non deve cambiare).
+    # Here a link is identified by the pair (Source, Cible). Tuples can go in a set because
+    # they are IMMUTABLE (lists cannot: an element of a set must not change).
     return set(zip(snapshot.links["Source"], snapshot.links["Cible"], strict=True))
 
 
 def test_before_the_project(data: InputData) -> None:
     snapshot = take_snapshot(data, date(2026, 10, 8))
 
-    # ALL_NODES - {"SHOP"}: tutti i nodi tranne il WebShop, che non esiste ancora.
+    # ALL_NODES - {"SHOP"}: all the nodes except the WebShop, which does not exist yet.
     assert node_ids(snapshot) == ALL_NODES - {"SHOP"}
     assert ("P_ORDERS", "SHEETS") in link_pairs(snapshot)
     assert ("P_ORDERS", "SHOP") not in link_pairs(snapshot)
@@ -62,9 +62,9 @@ def test_before_the_project(data: InputData) -> None:
 def test_during_the_migration(data: InputData) -> None:
     snapshot = take_snapshot(data, date(2027, 3, 15))
 
-    assert node_ids(snapshot) == ALL_NODES  # vecchio e nuovo sistema insieme
-    assert ("SHEETS", "SHOP") in link_pairs(snapshot)  # la freccia di migrazione
-    assert ("P_ORDERS", "SHOP") not in link_pairs(snapshot)  # il go-live non c'è ancora
+    assert node_ids(snapshot) == ALL_NODES  # old and new system together
+    assert ("SHEETS", "SHOP") in link_pairs(snapshot)  # the migration arrow
+    assert ("P_ORDERS", "SHOP") not in link_pairs(snapshot)  # no go-live yet
 
 
 def test_after_the_go_live(data: InputData) -> None:
@@ -75,11 +75,11 @@ def test_after_the_go_live(data: InputData) -> None:
     assert ("SHEETS", "SHOP") not in link_pairs(snapshot)
 
 
-# TEST AI BORDI: gli errori si nascondono spesso proprio sui confini (un "<" al posto di
-# "<="). Si prova il primo giorno, l'ultimo giorno, e i giorni subito prima e subito dopo.
-# PROVA FATTA ("mutation testing" = rompere il codice apposta per vedere se i test se ne
-# accorgono): con ">" al posto di ">=" in _exists_on fallisce SOLO test_last_day_is_included.
-# Gli altri test passavano lo stesso, perché nessuna delle loro date cade su una DateFin.
+# BOUNDARY TESTS: bugs often hide right on the boundaries (a "<" instead of "<=").
+# The first day, the last day, and the days just before and just after are tested.
+# CHECK DONE ("mutation testing" = breaking the code on purpose to see whether the tests
+# notice): with ">" instead of ">=" in _exists_on, ONLY test_last_day_is_included fails.
+# The other tests still passed, because none of their dates falls on a DateFin.
 def test_first_day_is_included(data: InputData) -> None:
     assert "SHOP" in node_ids(take_snapshot(data, date(2027, 3, 1)))
     assert "SHOP" not in node_ids(take_snapshot(data, date(2027, 2, 28)))
@@ -90,17 +90,17 @@ def test_last_day_is_included(data: InputData) -> None:
     assert "SHEETS" not in node_ids(take_snapshot(data, date(2027, 4, 1)))
 
 
-# PARAMETRIZE: lo stesso test eseguito più volte con valori diversi. pytest lo conta come
-# 3 test separati, e se ne fallisce uno dice per quale data. È come un ciclo for, ma ogni
-# giro è un test a sé.
+# PARAMETRIZE: the same test run several times with different values. pytest counts it as
+# 3 separate tests, and if one fails it says for which date. It is like a for loop, but each
+# iteration is a test of its own.
 @pytest.mark.parametrize("day", [date(2026, 10, 8), date(2027, 3, 15), date(2027, 6, 1)])
 def test_inactive_link_is_never_shown(data: InputData, day: date) -> None:
-    # MILL -> BILLING ha Actif = False nell'Excel.
+    # MILL -> BILLING has Actif = False in the Excel file.
     assert ("MILL", "BILLING") not in link_pairs(take_snapshot(data, day))
 
 
 def test_link_is_hidden_when_one_of_its_nodes_is_hidden() -> None:
-    # Dati costruiti a mano: B finisce a giugno 2026, ma il link A -> B (per errore) no.
+    # Hand-made data: B ends in June 2026, but the link A -> B (by mistake) does not.
     start, end = date(2026, 1, 1), date(2100, 12, 31)
     data = InputData(
         nodes=pd.DataFrame(
@@ -120,7 +120,7 @@ def test_link_is_hidden_when_one_of_its_nodes_is_hidden() -> None:
     assert link_pairs(take_snapshot(data, date(2026, 10, 1))) == set()
 
 
-# --- Confronto tra due date ------------------------------------------------------------
+# --- Comparing two dates ----------------------------------------------------------------
 
 BEFORE, AFTER = date(2026, 10, 8), date(2027, 6, 1)
 
@@ -148,8 +148,8 @@ def test_compare_finds_added_and_removed(data: InputData) -> None:
 def test_compare_contains_each_row_once(data: InputData) -> None:
     comparison = compare(data, BEFORE, AFTER)
 
-    # Unione dei due snapshot: ogni nodo compare UNA sola volta, qualunque sia lo stato.
-    # duplicated().any(): True se almeno un Id è ripetuto.
+    # Union of the two snapshots: each node appears ONCE only, whatever its status.
+    # duplicated().any(): True if at least one Id is repeated.
     assert not comparison.nodes["Id"].duplicated().any()
     assert set(comparison.nodes["Id"]) == ALL_NODES
 
@@ -164,17 +164,17 @@ def test_compare_in_the_other_direction_swaps_added_and_removed(data: InputData)
 def test_compare_same_day_changes_nothing(data: InputData) -> None:
     comparison = compare(data, BEFORE, BEFORE)
 
-    # set(colonna) == {un solo valore}: tutte le righe hanno lo stesso stato.
+    # set(column) == {a single value}: all the rows have the same status.
     assert set(comparison.nodes["Status"]) == {Status.UNCHANGED}
     assert set(comparison.links["Status"]) == {Status.UNCHANGED}
 
 
 def test_link_with_empty_flow_type_is_still_matched() -> None:
-    # TypeFlux vuoto nella chiave del link: senza fillna("") (NaN != NaN) lo stesso link
-    # risulterebbe "removed" E "added" invece che "unchanged".
-    # ATTENZIONE: va usato float("nan"), cioè ciò che arriva davvero da una cella Excel vuota.
-    # La prima versione usava None, ma None == None è VERO: il test passava anche senza
-    # fillna e non proteggeva niente (scoperto con il mutation testing).
+    # Empty TypeFlux in the link key: without fillna("") (NaN != NaN) the same link would be
+    # "removed" AND "added" instead of "unchanged".
+    # WARNING: use float("nan"), i.e. what really comes from an empty Excel cell.
+    # The first version used None, but None == None is TRUE: the test passed even without
+    # fillna and protected nothing (found out with mutation testing).
     start, end = date(2026, 1, 1), date(2100, 12, 31)
     data = InputData(
         nodes=pd.DataFrame(

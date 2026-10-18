@@ -1,41 +1,41 @@
 """Read the configuration file (config.toml)."""
 
-# tomllib è nella libreria standard da Python 3.11: legge i file TOML senza installare nulla.
+# tomllib is in the standard library since Python 3.11: it reads TOML files, nothing to install.
 import tomllib
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 
-# Eccezione personalizzata: basta derivare da Exception, il corpo può essere solo la docstring.
-# Il nome dice già cosa è andato storto, e chi chiama può fare "except ConfigError"
-# senza intercettare per sbaglio altri tipi di errore.
+# Custom exception: deriving from Exception is enough, the body can be just the docstring.
+# The name already says what went wrong, and callers can write "except ConfigError"
+# without catching other kinds of errors by mistake.
 class ConfigError(Exception):
     """The configuration file is missing, unreadable or has a wrong value."""
 
 
-# DATACLASS = la "struct" di Python. In C++ sarebbe:
+# DATACLASS = Python's "struct". In C++ it would be:
 #     struct Config {
 #         std::filesystem::path input_file;
 #         std::filesystem::path output_dir;
 #         std::optional<Date> snapshot_date = std::nullopt;  ...
 #     };
-# @dataclass è un DECORATORE: una riga sopra la classe che la "arricchisce". Dall'elenco dei
-# campi Python genera da solo il costruttore Config(input_file=..., ...), il confronto == e la
-# stampa leggibile Config(input_file=WindowsPath(...), ...). Senza @dataclass andrebbero scritti
-# a mano __init__, __eq__ e __repr__.
-# frozen=True rende l'oggetto IMMUTABILE dopo la creazione (come se tutti i campi fossero const):
-# "config.output_dir = ..." darebbe errore. Una configurazione non deve cambiare
-# durante l'esecuzione.
+# @dataclass is a DECORATOR: a line above the class that "enriches" it. From the list of
+# fields Python generates the constructor Config(input_file=..., ...), the == comparison and
+# a readable printout Config(input_file=WindowsPath(...), ...). Without @dataclass we would
+# have to write __init__, __eq__ and __repr__ by hand.
+# frozen=True makes the object IMMUTABLE after creation (as if every field were const):
+# "config.output_dir = ..." raises an error. A configuration must not change while the
+# program runs.
 @dataclass(frozen=True)
 class Config:
     """Everything the program needs to know before reading the Excel file."""
 
-    # TYPE HINTS: "nome: tipo". Si leggono come in C++, ma il tipo sta DOPO il nome.
-    # "date | None" = una data oppure niente, l'equivalente di std::optional<date>.
-    # ATTENZIONE: Python NON controlla i type hints quando esegue il codice. Servono a VSCode
-    # (Pylance) per suggerire i metodi e sottolineare gli errori mentre scrivi. Per questo più
-    # sotto controlliamo comunque i valori a mano con isinstance().
+    # TYPE HINTS: "name: type". They read like C++, but the type comes AFTER the name.
+    # "date | None" = a date or nothing, the equivalent of std::optional<date>.
+    # WARNING: Python does NOT check type hints when it runs the code. They are for VSCode
+    # (Pylance), which uses them to suggest methods and underline mistakes while you type.
+    # That is why the values are still checked by hand with isinstance() further down.
     input_file: Path
     output_dir: Path
     snapshot_date: date | None = None  # None: use DateReference from the Excel file
@@ -43,32 +43,32 @@ class Config:
     compare_after: date | None = None
 
 
-# "path: Path" = mi aspetto un Path; "-> Config" = restituisco un Config.
+# "path: Path" = I expect a Path; "-> Config" = I return a Config.
 def load_config(path: Path) -> Config:
     """Read a TOML configuration file and check its values."""
     try:
-        # tomllib vuole il file aperto in modalità BINARIA ("rb"): così lo decodifica lui,
-        # sempre in UTF-8, qualunque sia la codifica predefinita di Windows (accenti salvi).
-        # "with" chiude il file anche in caso di errore (come RAII in C++).
+        # tomllib wants the file opened in BINARY mode ("rb"): it then decodes it itself,
+        # always as UTF-8, whatever the Windows default encoding is (accents stay safe).
+        # "with" closes the file even if an error happens (like RAII in C++).
         with open(path, "rb") as file:
-            # Il risultato è un dizionario. Una sezione [compare] diventa un dizionario
-            # annidato: data["compare"]["after"]. Le date SENZA virgolette (2026-10-08)
-            # diventano subito oggetti datetime.date; CON le virgolette sarebbero stringhe.
+            # The result is a dictionary. A [compare] section becomes a nested dictionary:
+            # data["compare"]["after"]. Dates WITHOUT quotes (2026-10-08) become
+            # datetime.date objects right away; WITH quotes they would be strings.
             data = tomllib.load(file)
     except FileNotFoundError:
-        # "from None": dentro un except Python mostrerebbe ENTRAMBI gli errori (l'originale e
-        # il nostro, con "During handling of the above exception, another exception occurred").
-        # from None nasconde l'originale perché il nostro messaggio è già completo.
-        # Per tenere la catena si scrive invece "from error".
+        # "from None": inside an except block Python would show BOTH errors (the original one
+        # and ours, with "During handling of the above exception, another exception
+        # occurred"). from None hides the original, because our message is already complete.
+        # To keep the chain you would write "from error" instead.
         raise ConfigError(f"Configuration file not found: {path}") from None
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f"{path.name} is not valid TOML: {error}") from None
 
-    # I percorsi relativi partono dalla cartella del file di config, non da dove si lancia
-    # il programma: stessa idea di __file__ nel generatore dei dati.
+    # Relative paths start from the folder of the config file, not from where the program
+    # is launched: same idea as __file__ in the sample data generator.
     folder = path.parent
-    # .get(chiave, default) restituisce il default se la chiave manca (data["compare"]
-    # darebbe invece KeyError). Così la sezione [compare] può mancare.
+    # .get(key, default) returns the default if the key is missing (data["compare"] would
+    # raise KeyError instead). This way the [compare] section is optional.
     compare = data.get("compare", {})
     config = Config(
         input_file=folder / _required_text(data, "input_file"),
@@ -78,10 +78,10 @@ def load_config(path: Path) -> Config:
         compare_after=_optional_date(compare.get("after"), "compare.after"),
     )
 
-    # Confronto tra due booleani con != : funziona da XOR. È vero se ESATTAMENTE una delle
-    # due date manca, cioè se ne è stata scritta una sola.
-    # "is None" e non "== None": None è un oggetto unico e "is" controlla l'identità
-    # (come confrontare un puntatore con nullptr). Ruff segnalerebbe "== None".
+    # Comparing two booleans with != works as XOR: it is true if EXACTLY one of the two
+    # dates is missing, i.e. only one was written.
+    # "is None" rather than "== None": None is a unique object and "is" checks identity
+    # (like comparing a pointer with nullptr). Ruff would flag "== None".
     if (config.compare_before is None) != (config.compare_after is None):
         raise ConfigError("[compare] needs both 'before' and 'after'")
     if config.compare_before and config.compare_after <= config.compare_before:
@@ -89,9 +89,9 @@ def load_config(path: Path) -> Config:
     return config
 
 
-# Il TRATTINO BASSO iniziale (_required_text) è la convenzione per "funzione interna al
-# modulo, non usarla da fuori": come private, o una funzione static in un .cpp.
-# Python non lo impone, ma VSCode e chi legge lo capiscono.
+# The leading UNDERSCORE (_required_text) is the convention for "internal to this module,
+# don't use it from outside": like private, or a static function in a .cpp file.
+# Python does not enforce it, but VSCode and readers understand it.
 def _required_text(data: dict, key: str) -> str:
     """Return data[key], or raise ConfigError if it is missing or not a string."""
     value = data.get(key)
@@ -100,11 +100,11 @@ def _required_text(data: dict, key: str) -> str:
     return value
 
 
-# "value: object" = qualsiasi cosa: dal TOML può arrivare di tutto.
+# "value: object" = anything: any kind of value can come from the TOML file.
 def _optional_date(value: object, name: str) -> date | None:
     """Return the value if it is a date (or None), otherwise raise ConfigError."""
     if value is None or isinstance(value, date):
         return value
-    # {value!r} nella f-string stampa la RAPPRESENTAZIONE dell'oggetto ('2026-10-08' con le
-    # virgolette) invece del testo: si vede subito che è una stringa e non una data.
+    # {value!r} in an f-string prints the REPRESENTATION of the object ('2026-10-08' with
+    # quotes) instead of its text: it shows at once that it is a string and not a date.
     raise ConfigError(f"'{name}' must be a date like 2026-10-08, without quotes (got {value!r})")

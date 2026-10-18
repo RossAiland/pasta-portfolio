@@ -1,20 +1,20 @@
 """Tests for pasta.config."""
 
-# COME PYTEST TROVA I TEST: cerca nella cartella tests/ (impostata in pyproject.toml) i file
-# che si chiamano test_*.py e, dentro, le funzioni che si chiamano test_*. Non serve
-# registrarle da nessuna parte: basta il nome. Si lanciano con "pytest" dal terminale
-# oppure dal pannello Testing di VSCode (icona della provetta).
+# HOW PYTEST FINDS THE TESTS: in the tests/ folder (set in pyproject.toml) it looks for files
+# named test_*.py and, inside them, for functions named test_*. They do not need to be
+# registered anywhere: the name is enough. Run them with "pytest" from the terminal or from
+# VSCode's Testing panel (the flask icon).
 
 from datetime import date
 from pathlib import Path
 
 import pytest
 
-# Grazie a "pip install -e ." il package pasta si importa da qui come da qualsiasi altro posto.
+# Thanks to "pip install -e ." the pasta package can be imported from here like anywhere else.
 from pasta.config import ConfigError, load_config
 
-# Un config completo e corretto, usato da più test.
-# Stringa su più righe: con """...""" si può andare a capo dentro la stringa.
+# A complete and correct config, used by several tests.
+# Multi-line string: with """...""" you can break lines inside the string.
 VALID = """
 input_file = "data/file.xlsx"
 output_dir = "out"
@@ -28,25 +28,25 @@ after = 2027-06-01
 
 def write_config(folder: Path, text: str) -> Path:
     """Write text into folder/config.toml and return its path."""
-    # write_text apre, scrive e chiude il file in una riga sola.
+    # write_text opens, writes and closes the file in one line.
     path = folder / "config.toml"
     path.write_text(text, encoding="utf-8")
     return path
 
 
-# FIXTURE tmp_path: basta scrivere un parametro con questo nome e pytest passa da solo una
-# cartella temporanea NUOVA e VUOTA, diversa per ogni test. Così i test non si disturbano a
-# vicenda e non sporcano il progetto. (In C++ con GoogleTest sarebbe il SetUp() di una fixture.)
+# tmp_path FIXTURE: just write a parameter with this name and pytest passes a NEW, EMPTY
+# temporary folder, different for every test. This way tests do not interfere with each other
+# and do not litter the project. (In C++ with GoogleTest it would be a fixture's SetUp().)
 def test_valid_config_is_read(tmp_path: Path) -> None:
     config = load_config(write_config(tmp_path, VALID))
 
-    # ASSERT: se la condizione è falsa il test fallisce, e pytest mostra i due valori
-    # confrontati (non serve ASSERT_EQ come in GoogleTest: basta il normale ==).
-    # Come si legge un FALLIMENTO: la riga con ">" è l'assert che ha fallito; le righe con
-    # "E" mostrano i valori veri, es. "assert date(2026, 10, 8) == date(2026, 8, 10)".
-    # In fondo, "FAILED file::nome_test" riassume quali test sono falliti.
-    # Un test è utile solo se FALLISCE quando il codice è sbagliato: quando ne scrivi uno,
-    # prova a rompere apposta il codice e controlla che diventi rosso.
+    # ASSERT: if the condition is false the test fails, and pytest shows the two values
+    # compared (no need for ASSERT_EQ as in GoogleTest: the normal == is enough).
+    # How to read a FAILURE: the line with ">" is the assert that failed; the lines with "E"
+    # show the real values, e.g. "assert date(2026, 10, 8) == date(2026, 8, 10)".
+    # At the end, "FAILED file::test_name" sums up which tests failed.
+    # A test is useful only if it FAILS when the code is wrong: when you write one, break the
+    # code on purpose and check that the test turns red.
     assert config.snapshot_date == date(2026, 10, 8)
     assert config.compare_before == date(2026, 10, 8)
     assert config.compare_after == date(2027, 6, 1)
@@ -69,9 +69,9 @@ def test_snapshot_date_and_compare_are_optional(tmp_path: Path) -> None:
     assert config.compare_after is None
 
 
-# PYTEST.RAISES verifica che un errore VENGA sollevato: il test passa solo se dentro il
-# blocco "with" arriva un ConfigError. match="..." controlla anche che il messaggio
-# contenga quel testo (è una regex: attenzione ai caratteri speciali come [ ]).
+# PYTEST.RAISES checks that an error IS raised: the test passes only if a ConfigError comes
+# out of the "with" block. match="..." also checks that the message contains that text
+# (it is a regex: beware of special characters such as [ ]).
 def test_missing_config_file_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="not found"):
         load_config(tmp_path / "does_not_exist.toml")

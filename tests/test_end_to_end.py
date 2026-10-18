@@ -9,12 +9,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-# END-TO-END: gli altri test chiamano le funzioni Python DALL'INTERNO (run, main). Questi
-# invece fanno esattamente ciò che fa un utente: lanciano "python -m pasta" come PROGRAMMA
-# SEPARATO e controllano dall'esterno codice di uscita, testo stampato e file prodotti.
-# Così verificano anche ciò che gli altri test non toccano: il blocco
-# "if __name__ == '__main__'", sys.exit, l'installazione del package.
-# Sono più lenti (avviano un nuovo Python), quindi ne bastano pochi.
+# END-TO-END: the other tests call the Python functions FROM THE INSIDE (run, main). These
+# instead do exactly what a user does: they launch "python -m pasta" as a SEPARATE PROGRAM
+# and check from the outside the exit code, the printed text and the files produced.
+# This way they also cover what the other tests do not touch: the
+# "if __name__ == '__main__'" block, sys.exit, the installation of the package.
+# They are slower (they start a new Python), so a few are enough.
 
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
 
@@ -23,18 +23,18 @@ needs_graphviz = pytest.mark.skipif(shutil.which("dot") is None, reason="Graphvi
 
 def run_pasta(*args: str) -> subprocess.CompletedProcess:
     """Run "python -m pasta <args>" in a separate process and return its result."""
-    # *args: la funzione accetta un numero QUALSIASI di argomenti, raccolti in una tupla
-    # (come i parametri variadici "..." in C++). run_pasta("--config", "x.toml").
+    # *args: the function accepts ANY number of arguments, collected in a tuple
+    # (like variadic "..." parameters in C++). run_pasta("--config", "x.toml").
     #
-    # SUBPROCESS (libreria standard) lancia un altro programma, come std::system/popen in C++.
-    # - sys.executable = il percorso del Python che sta eseguendo i test (quello del .venv):
-    #   così il programma gira con le stesse librerie;
-    # - capture_output=True: cattura ciò che il programma stampa (stdout e stderr);
-    # - text=True, encoding="utf-8": l'output arriva come testo e non come bytes;
-    # - env: le variabili d'ambiente del nuovo processo. PYTHONIOENCODING=utf-8 obbliga il
-    #   programma a stampare in UTF-8: sul terminale Windows la codifica predefinita è un'altra
-    #   e gli accenti ("Système") arriverebbero storpiati.
-    #   {**os.environ, ...} = una copia delle variabili attuali con una in più.
+    # SUBPROCESS (standard library) launches another program, like std::system/popen in C++.
+    # - sys.executable = the path of the Python running the tests (the .venv one):
+    #   so the program runs with the same libraries;
+    # - capture_output=True: captures what the program prints (stdout and stderr);
+    # - text=True, encoding="utf-8": the output arrives as text and not as bytes;
+    # - env: the environment variables of the new process. PYTHONIOENCODING=utf-8 forces the
+    #   program to print in UTF-8: on the Windows terminal the default encoding is another
+    #   one and accents ("Système") would arrive garbled.
+    #   {**os.environ, ...} = a copy of the current variables with one more.
     return subprocess.run(
         [sys.executable, "-m", "pasta", *args],
         capture_output=True,
@@ -59,8 +59,8 @@ def write_config(folder: Path, input_file: Path) -> Path:
 def test_the_program_draws_four_files(tmp_path: Path) -> None:
     result = run_pasta("--config", str(write_config(tmp_path, SAMPLE_FILE)))
 
-    assert result.returncode == 0, result.stderr  # se fallisce, pytest mostra l'errore
-    # sorted(...) restituisce una lista ORDINATA; .glob("*") = tutti i file della cartella.
+    assert result.returncode == 0, result.stderr  # if it fails, pytest shows the error
+    # sorted(...) returns a SORTED list; .glob("*") = all the files of the folder.
     assert sorted(path.name for path in (tmp_path / "out").glob("*")) == [
         "compare_2026-10-08_2027-06-01.html",
         "compare_2026-10-08_2027-06-01.svg",
@@ -83,7 +83,7 @@ def test_the_program_stops_on_wrong_data(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "Noeuds, row 7: Actif must be True or False (found: 'oui')" in result.stderr
-    assert "Traceback" not in result.stderr  # un messaggio chiaro, non la traccia di Python
+    assert "Traceback" not in result.stderr  # a clear message, not Python's traceback
     assert not (tmp_path / "out").exists()
 
 

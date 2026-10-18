@@ -6,20 +6,20 @@ from pathlib import Path
 
 import pandas as pd
 
-# COME LEGGE PANDAS IL NOSTRO EXCEL (visto esplorando data/sample_pastificio.xlsx):
-# 1. Ogni colonna ha UN SOLO tipo, il "dtype", dedotto dai valori: str, float64, bool,
-#    datetime64... In C++ è come se ogni colonna fosse un std::vector<T> con un solo T.
-# 2. Le celle vuote diventano NaN ("Not a Number"), che è un FLOAT. Quindi:
-#    - una colonna di interi con celle vuote diventa float64 (Penwidth: 1.0, 2.0, NaN);
-#    - una colonna di testo tutta vuota diventa float64 (Commentaire).
-#    NaN == NaN è FALSO (come i float IEEE in C++): per una cella vuota si usa SEMPRE
-#    pd.isna(valore), mai "== NaN".
-# 3. Le date diventano Timestamp (data + ora 00:00:00). Il resto del programma (e Config)
-#    usa datetime.date: qui le convertiamo, così c'è un solo tipo di data ovunque.
-# 4. La colonna Valeur di Parametres mescola tipi diversi (str, int, datetime): la
-#    trasformiamo in un dizionario {nome: valore}.
+# HOW PANDAS READS OUR EXCEL FILE (seen by exploring data/sample_pastificio.xlsx):
+# 1. Each column has ONE type only, its "dtype", guessed from the values: str, float64, bool,
+#    datetime64... In C++ terms, each column is like a std::vector<T> with a single T.
+# 2. Empty cells become NaN ("Not a Number"), which is a FLOAT. Therefore:
+#    - a column of integers with empty cells becomes float64 (Penwidth: 1.0, 2.0, NaN);
+#    - a text column that is completely empty becomes float64 (Commentaire).
+#    NaN == NaN is FALSE (like IEEE floats in C++): to detect an empty cell ALWAYS use
+#    pd.isna(value), never "== NaN".
+# 3. Dates become Timestamps (date + time 00:00:00). The rest of the program (and Config)
+#    uses datetime.date: they are converted here, so there is one date type everywhere.
+# 4. The Valeur column of Parametres mixes different types (str, int, datetime): it is
+#    turned into a dictionary {name: value}.
 
-# Nomi dei fogli, in francese come nel file reale.
+# Sheet names, in French like in the real file.
 NODES_SHEET = "Noeuds"
 LINKS_SHEET = "Liens"
 PROJECTS_SHEET = "Projets"
@@ -36,11 +36,11 @@ class LoadError(Exception):
 class InputData:
     """The content of the Excel file, ready for the rest of the program."""
 
-    # pd.DataFrame come type hint: VSCode sa che nodes è una tabella e suggerisce i metodi.
+    # pd.DataFrame as a type hint: VSCode knows that nodes is a table and suggests its methods.
     nodes: pd.DataFrame
     links: pd.DataFrame
     projects: pd.DataFrame
-    # dict[str, object]: chiavi di tipo str, valori di tipo qualsiasi (testo, numeri, date).
+    # dict[str, object]: keys of type str, values of any type (text, numbers, dates).
     # In C++: std::map<std::string, std::any>.
     parameters: dict[str, object]
 
@@ -48,18 +48,18 @@ class InputData:
 def load_excel(path: Path) -> InputData:
     """Read the four sheets of the input file and convert their types."""
     try:
-        # sheet_name=None legge TUTTI i fogli in un colpo: il risultato è un dizionario
-        # {nome del foglio: DataFrame}.
+        # sheet_name=None reads ALL the sheets at once: the result is a dictionary
+        # {sheet name: DataFrame}.
         sheets = pd.read_excel(path, sheet_name=None)
     except FileNotFoundError:
         raise LoadError(f"Input file not found: {path}") from None
 
-    # Controllo dei fogli prima di usarli, così l'errore dice QUALE foglio manca invece di
-    # un generico KeyError. Il controllo delle colonne e dei valori lo farà validation.py.
+    # The sheets are checked before use, so the error says WHICH sheet is missing instead of
+    # a generic KeyError. Columns and values are checked later by validation.py.
     expected = [NODES_SHEET, LINKS_SHEET, PROJECTS_SHEET, PARAMETERS_SHEET]
-    # List comprehension con filtro: "i nomi attesi che NON sono tra le chiavi di sheets".
+    # List comprehension with a filter: "the expected names that are NOT keys of sheets".
     missing = [name for name in expected if name not in sheets]
-    if missing:  # una lista vuota vale False, una lista non vuota vale True
+    if missing:  # an empty list counts as False, a non-empty list as True
         raise LoadError(f"{path.name}: missing sheet(s) {', '.join(missing)}")
 
     return InputData(
@@ -75,50 +75,50 @@ def _clean(table: pd.DataFrame) -> pd.DataFrame:
 
     Values that cannot be converted are left as they are: validation.py reports them.
     """
-    # RIGHE VUOTE: una riga vuota IN MEZZO al foglio arriva come riga di soli NaN (quelle
-    # vuote IN FONDO, anche se formattate, pandas le salta già da solo).
-    # dropna(how="all") toglie le righe in cui TUTTE le celle sono vuote, e restituisce una
-    # NUOVA tabella: quella ricevuta non viene modificata (come passare per valore in C++).
-    # L'INDICE resta quello originale (es. 0, 2 se la riga 1 era vuota): così validation.py
-    # potrà indicare la riga Excel giusta = indice + 2 (+1 perché l'indice parte da 0,
-    # +1 per la riga delle intestazioni).
-    # SCELTA (regola "A"): una riga con UNA sola cella compilata (es. solo Actif = True, magari
-    # trascinato lungo la colonna in Excel) NON è vuota, quindi resta. validation.py troverà
-    # Id e date vuoti e fermerà il programma: meglio un errore da correggere che nascondere
-    # qualcosa.
+    # EMPTY ROWS: an empty row IN THE MIDDLE of the sheet arrives as a row of NaN only (empty
+    # rows AT THE END, even if formatted, are already skipped by pandas).
+    # dropna(how="all") removes the rows where ALL cells are empty, and returns a NEW table:
+    # the one received is not modified (like passing by value in C++).
+    # The INDEX stays the original one (e.g. 0, 2 if row 1 was empty): this way validation.py
+    # can point to the right Excel row = index + 2 (+1 because the index starts at 0,
+    # +1 for the header row).
+    # CHOICE ("rule A"): a row with ONE filled cell only (e.g. only Actif = True, maybe
+    # dragged down the column in Excel) is NOT empty, so it stays. validation.py will find
+    # an empty Id and empty dates and stop the program: better an error to fix than
+    # something hidden.
     table = table.dropna(how="all")
 
     if "Actif" in table.columns:
-        # .map(funzione) applica la funzione a OGNI cella della colonna e restituisce la
-        # nuova colonna. Si passa il NOME della funzione, senza (): come un puntatore a
-        # funzione in C++.
+        # .map(function) applies the function to EVERY cell of the column and returns the new
+        # column. You pass the NAME of the function, without (): like a function pointer
+        # in C++.
         table["Actif"] = table["Actif"].map(_as_bool)
 
     for column in DATE_COLUMNS:
         if column in table.columns:
-            # OPERAZIONE "VETTORIALE": si applica a TUTTA la colonna in un colpo, senza
-            # scrivere un ciclo for sulle righe. È lo stile tipico di pandas.
-            # errors="coerce": un valore che non è una data diventa NaT ("Not a Time", il NaN
-            # delle date) invece di bloccare tutto; validation.py lo segnalerà.
-            # .dt.date: da Timestamp (data + ora) a datetime.date (solo data).
-            # Dopo la conversione il dtype della colonna è "object": il tipo GENERICO di pandas,
-            # una colonna di oggetti Python qualsiasi (qui date). Meno efficiente di datetime64,
-            # ma con poche righe non conta, e abbiamo un solo tipo di data in tutto il programma.
+            # "VECTORIZED" OPERATION: it applies to the WHOLE column at once, without writing
+            # a for loop over the rows. This is the typical pandas style.
+            # errors="coerce": a value that is not a date becomes NaT ("Not a Time", the NaN
+            # of dates) instead of stopping everything; validation.py will report it.
+            # .dt.date: from Timestamp (date + time) to datetime.date (date only).
+            # After the conversion the column dtype is "object": pandas' GENERIC type, a column
+            # of arbitrary Python objects (dates here). Less efficient than datetime64, but
+            # with a few rows it does not matter, and the program has a single date type.
             table[column] = pd.to_datetime(table[column], errors="coerce").dt.date
     return table
 
 
 def _as_bool(value: object) -> object:
     """Return True/False for a boolean cell, the value unchanged otherwise."""
-    # Quando una colonna di booleani contiene anche celle vuote, pandas non può usare il
-    # dtype bool (che non ammette NaN) e ripiega su float: True diventa 1.0, False 0.0.
-    # Qui li riportiamo a True/False. Celle vuote e valori strani (es. testo "oui") restano
-    # come sono: Actif deve SEMPRE valere True o False, e validation.py fermerà il
-    # programma con un errore chiaro, costringendo a correggere il file.
+    # When a column of booleans also has empty cells, pandas cannot use the bool dtype
+    # (which does not allow NaN) and falls back to float: True becomes 1.0, False 0.0.
+    # Here they are turned back into True/False. Empty cells and odd values (e.g. the text
+    # "oui") stay as they are: Actif must ALWAYS be True or False, and validation.py will
+    # stop the program with a clear error, forcing the user to fix the file.
     if pd.isna(value):
         return value
-    # "in (0, 1)" vale per True/False (in Python bool è un sottotipo di int: True == 1)
-    # e per 1.0/0.0. Una stringa come "1" NON è uguale a 1, quindi resta invariata.
+    # "in (0, 1)" holds for True/False (in Python bool is a subtype of int: True == 1)
+    # and for 1.0/0.0. A string like "1" is NOT equal to 1, so it stays unchanged.
     if value in (0, 1):
         return bool(value)
     return value
@@ -126,16 +126,16 @@ def _as_bool(value: object) -> object:
 
 def _parameters_to_dict(table: pd.DataFrame) -> dict[str, object]:
     """Turn the Parametres sheet into {name: value}, with dates as datetime.date."""
-    # zip() scorre due colonne in parallelo, a coppie: (nome1, valore1), (nome2, valore2)...
-    # DICT COMPREHENSION: come la list comprehension ma con { } e "chiave: valore".
-    # "if pd.notna(name)" salta le righe con il nome vuoto (es. righe vuote in fondo al foglio).
-    # strict=True: se le due sequenze avessero lunghezze diverse, zip() normalmente si
-    # fermerebbe IN SILENZIO alla più corta; con strict=True solleva un errore (Ruff B905).
+    # zip() walks through two columns in parallel, in pairs: (name1, value1), (name2, value2)...
+    # DICT COMPREHENSION: like a list comprehension but with { } and "key: value".
+    # "if pd.notna(name)" skips rows with an empty name (e.g. empty rows at the end).
+    # strict=True: if the two sequences had different lengths, zip() would normally stop
+    # SILENTLY at the shorter one; with strict=True it raises an error (Ruff B905).
     pairs = zip(table["Parametre"], table["Valeur"], strict=True)
     parameters = {name: value for name, value in pairs if pd.notna(name)}
-    # isinstance(value, datetime) è vero anche per i Timestamp di pandas, che "derivano" da
-    # datetime (ereditarietà, come in C++). .date() tiene solo la data.
-    # .items() su un dizionario dà le coppie (chiave, valore).
+    # isinstance(value, datetime) is also true for pandas Timestamps, which "derive" from
+    # datetime (inheritance, as in C++). .date() keeps the date only.
+    # .items() on a dictionary gives the (key, value) pairs.
     for name, value in parameters.items():
         if isinstance(value, datetime):
             parameters[name] = value.date()

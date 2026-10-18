@@ -6,59 +6,59 @@ import pandas as pd
 
 from pasta.loader import LINKS_SHEET, NODES_SHEET, PROJECTS_SHEET, InputData
 
-# IDEA: invece di fermarsi al PRIMO errore, si controlla tutto il file e si raccolgono gli
-# errori in una lista. Chi corregge l'Excel vede l'elenco completo in una volta sola, invece
-# di correggere, rilanciare, scoprire l'errore successivo, e così via.
+# IDEA: instead of stopping at the FIRST error, the whole file is checked and the errors are
+# collected in a list. Whoever fixes the Excel file sees the complete list at once, instead
+# of fixing, re-running, finding the next error, and so on.
 #
-# DUE FUNZIONI SEPARATE:
-# - find_errors(data) -> list[str]: TROVA gli errori e li restituisce (facile da testare:
-#   basta controllare la lista);
-# - validate(data): chiama find_errors e, se la lista non è vuota, FERMA il programma
-#   sollevando DataValidationError. È quella che userà il programma.
+# TWO SEPARATE FUNCTIONS:
+# - find_errors(data) -> list[str]: FINDS the errors and returns them (easy to test: just
+#   check the list);
+# - validate(data): calls find_errors and, if the list is not empty, STOPS the program by
+#   raising DataValidationError. This is the one the program uses.
 
-# Colonne che DEVONO esistere in ogni foglio, e che non possono avere celle vuote.
-# (Actif è controllato a parte: deve essere True o False.)
+# Columns that MUST exist in each sheet and cannot have empty cells.
+# (Actif is checked separately: it must be True or False.)
 NODE_REQUIRED = ["Id", "Libelle", "TypeElement", "Actif", "DateDebut", "DateFin"]
 LINK_REQUIRED = ["Source", "Cible", "Actif", "DateDebut", "DateFin"]
 PROJECT_REQUIRED = ["Id"]
 
-# Ordine dei fogli nell'elenco degli errori (lo stesso dell'Excel).
+# Order of the sheets in the list of errors (the same as in the Excel file).
 SHEET_ORDER = {NODES_SHEET: 0, LINKS_SHEET: 1, PROJECTS_SHEET: 2}
 
 
 class DataValidationError(Exception):
     """The input file has one or more errors; .errors holds the full list."""
 
-    # Questa eccezione, a differenza di ConfigError, ha un COSTRUTTORE (__init__): riceve la
-    # lista degli errori e la conserva in self.errors, così chi la intercetta può usarla
-    # (per esempio un test può contare gli errori).
-    # "self" è l'oggetto stesso: come "this" in C++, ma va scritto esplicitamente come
-    # primo parametro di ogni metodo.
+    # Unlike ConfigError, this exception has a CONSTRUCTOR (__init__): it receives the list
+    # of errors and keeps it in self.errors, so whoever catches it can use it (for example
+    # a test can count the errors).
+    # "self" is the object itself: like "this" in C++, but it must be written explicitly as
+    # the first parameter of every method.
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors
-        # "\n".join(lista) unisce le stringhe della lista mettendo un a capo tra l'una e l'altra.
-        # Dentro join c'è una GENERATOR EXPRESSION: come una list comprehension ma senza [ ].
-        # Produce i valori uno alla volta invece di costruire una lista intera in memoria.
+        # "\n".join(list) joins the strings of the list with a newline between them.
+        # Inside join there is a GENERATOR EXPRESSION: like a list comprehension without [ ].
+        # It produces the values one at a time instead of building a whole list in memory.
         lines = "\n".join(f"  {error}" for error in errors)
-        # super().__init__(...) chiama il costruttore della classe base (Exception), come
-        # ": Exception(message)" nella lista di inizializzazione di un costruttore C++.
-        # Il testo passato è il messaggio che si vede quando l'errore viene stampato.
+        # super().__init__(...) calls the constructor of the base class (Exception), like
+        # ": Exception(message)" in the initializer list of a C++ constructor.
+        # The text passed is the message shown when the error is printed.
         super().__init__(f"The input file has {len(errors)} error(s):\n{lines}")
 
 
-# Un errore trovato, con il numero di riga come INTERO: se fossero solo stringhe, ordinandole
-# "row 10" verrebbe prima di "row 9" (le stringhe si confrontano carattere per carattere).
-# Si ordina sui campi, e solo alla fine si trasforma in testo.
+# One error found, with the row number as an INTEGER: if they were plain strings, sorting
+# them would put "row 10" before "row 9" (strings are compared character by character).
+# Sorting uses the fields, and only at the end is the error turned into text.
 @dataclass
 class Problem:
     sheet: str
-    row: int  # riga Excel; 0 = problema dell'intero foglio (es. colonna mancante)
+    row: int  # Excel row; 0 = a problem of the whole sheet (e.g. a missing column)
     text: str
 
-    # Un METODO: una funzione definita dentro la classe, che riceve l'oggetto come "self".
+    # A METHOD: a function defined inside the class, which receives the object as "self".
     def __str__(self) -> str:
-        # __str__ è il metodo "speciale" che Python chiama quando l'oggetto diventa testo
-        # (str(problem), print(problem), f"{problem}"). Come ridefinire operator<< in C++.
+        # __str__ is the "special" method Python calls when the object becomes text
+        # (str(problem), print(problem), f"{problem}"). Like overloading operator<< in C++.
         if self.row == 0:
             return f"{self.sheet}: {self.text}"
         return f"{self.sheet}, row {self.row}: {self.text}"
@@ -73,13 +73,13 @@ def validate(data: InputData) -> None:
 
 def find_errors(data: InputData) -> list[str]:
     """Return the list of all the errors found in the input data (empty if all is fine)."""
-    problems: list[Problem] = []  # type hint su una variabile: "lista di Problem", vuota
+    problems: list[Problem] = []  # type hint on a variable: "list of Problem", empty for now
 
-    # Se mancano colonne in un foglio, gli altri controlli su quel foglio non hanno senso
-    # (darebbero KeyError): lo segnaliamo e passiamo oltre.
-    # Le funzioni _check_* ricevono la lista "problems" e la RIEMPIONO: in Python una lista
-    # passata a una funzione NON viene copiata (come passare un riferimento in C++), quindi
-    # le aggiunte fatte dentro la funzione si vedono anche qui.
+    # If a sheet is missing columns, the other checks on that sheet make no sense (they would
+    # raise KeyError): the problem is reported and the sheet is skipped.
+    # The _check_* functions receive the "problems" list and FILL it: in Python a list passed
+    # to a function is NOT copied (like passing a reference in C++), so what is appended
+    # inside the function is visible here too.
     nodes_ok = _check_columns(data.nodes, NODES_SHEET, NODE_REQUIRED, problems)
     links_ok = _check_columns(data.links, LINKS_SHEET, LINK_REQUIRED, problems)
     projects_ok = _check_columns(data.projects, PROJECTS_SHEET, PROJECT_REQUIRED, problems)
@@ -98,7 +98,7 @@ def find_errors(data: InputData) -> list[str]:
         _check_unique_ids(data.projects, PROJECTS_SHEET, problems)
         _check_date_order(data.projects, PROJECTS_SHEET, problems)
 
-    # Controlli tra fogli diversi: servono le colonne di entrambi.
+    # Checks across sheets: they need the columns of both.
     if nodes_ok and links_ok:
         for column in ["Source", "Cible"]:
             _check_references(
@@ -115,22 +115,21 @@ def find_errors(data: InputData) -> list[str]:
                 data.links, LINKS_SHEET, "Projet", project_ids, PROJECTS_SHEET, problems
             )
 
-    # ORDINAMENTO per foglio e poi per riga.
-    # key=... dice a sort() su COSA confrontare gli elementi. "lambda p: ..." è una funzione
-    # anonima di una riga (come una lambda C++: [](const Problem& p) { return ...; }).
-    # Restituisce una TUPLA: le tuple si confrontano campo per campo (prima il foglio, a
-    # parità di foglio la riga), come std::tie in C++.
-    # sort() è STABILE: due errori sulla stessa riga restano nell'ordine in cui sono stati
-    # trovati.
+    # SORTING by sheet, then by row.
+    # key=... tells sort() WHAT to compare. "lambda p: ..." is a one-line anonymous function
+    # (like a C++ lambda: [](const Problem& p) { return ...; }).
+    # It returns a TUPLE: tuples are compared field by field (first the sheet, then, for the
+    # same sheet, the row), like std::tie in C++.
+    # sort() is STABLE: two errors on the same row keep the order in which they were found.
     problems.sort(key=lambda p: (SHEET_ORDER[p.sheet], p.row))
     return [str(problem) for problem in problems]
 
 
 def _excel_row(index: int) -> int:
     """Return the row number shown in Excel for a pandas index."""
-    # Riga Excel = indice + 2: +1 perché l'indice di pandas parte da 0, +1 per la riga
-    # delle intestazioni. Il loader conserva l'indice originale anche dopo aver tolto le
-    # righe vuote, quindi il numero è quello giusto.
+    # Excel row = index + 2: +1 because the pandas index starts at 0, +1 for the header row.
+    # The loader keeps the original index even after removing empty rows, so the number is
+    # the right one.
     return index + 2
 
 
@@ -141,7 +140,7 @@ def _check_columns(
     missing = [column for column in required if column not in table.columns]
     for column in missing:
         problems.append(Problem(sheet, 0, f"column '{column}' is missing"))
-    # "not missing": True se la lista è vuota (nessuna colonna mancante).
+    # "not missing": True if the list is empty (no missing column).
     return not missing
 
 
@@ -151,14 +150,14 @@ def _check_not_empty(
     """Add a problem for each empty cell in the given columns (Actif excluded)."""
     for column in columns:
         if column == "Actif":
-            continue  # controllato da _check_actif
-        # MASCHERA BOOLEANA: table[column].isna() restituisce una colonna di True/False,
-        # True dove la cella è vuota. È un'operazione vettoriale (nessun ciclo sulle righe).
+            continue  # checked by _check_actif
+        # BOOLEAN MASK: table[column].isna() returns a column of True/False, True where the
+        # cell is empty. It is a vectorized operation (no loop over the rows).
         empty = table[column].isna()
-        # table.index[maschera] = gli INDICI delle righe in cui la maschera vale True.
+        # table.index[mask] = the INDEXES of the rows where the mask is True.
         for index in table.index[empty]:
-            # Per le date "vuota" comprende anche "non era una data": il loader ha trasformato
-            # i valori non validi in NaT.
+            # For dates, "empty" also covers "was not a date": the loader turned invalid
+            # values into NaT.
             if column.startswith("Date"):
                 text = f"{column} is empty or not a valid date"
             else:
@@ -168,17 +167,17 @@ def _check_not_empty(
 
 def _check_actif(table: pd.DataFrame, sheet: str, problems: list[Problem]) -> None:
     """Add a problem for each Actif cell that is not exactly True or False."""
-    # pd.api.types.is_bool(v) è vero sia per i bool di Python sia per i numpy.bool_ (il tipo
-    # che pandas usa quando la colonna è tutta booleana). Con isinstance(v, bool) i
-    # numpy.bool_ verrebbero rifiutati per sbaglio.
-    # .map(funzione) la applica a ogni cella; "~" NEGA una maschera (True <-> False),
-    # come "!" in C++ ma elemento per elemento.
+    # pd.api.types.is_bool(v) is true both for Python bools and for numpy.bool_ (the type
+    # pandas uses when the column is all booleans). With isinstance(v, bool) the numpy.bool_
+    # values would be rejected by mistake.
+    # .map(function) applies it to every cell; "~" NEGATES a mask (True <-> False),
+    # like "!" in C++ but element by element.
     wrong = ~table["Actif"].map(pd.api.types.is_bool)
     for index in table.index[wrong]:
-        value = table.at[index, "Actif"]  # .at[indice, colonna] = il valore di UNA cella
-        # ESPRESSIONE CONDIZIONALE "a if condizione else b": è l'operatore ternario del C++
-        # (condizione ? a : b), scritto in un altro ordine.
-        # repr(value) dà la rappresentazione del valore: 'oui' con le virgolette, 1.5 senza.
+        value = table.at[index, "Actif"]  # .at[index, column] = the value of ONE cell
+        # CONDITIONAL EXPRESSION "a if condition else b": the C++ ternary operator
+        # (condition ? a : b), written in a different order.
+        # repr(value) gives the representation of the value: 'oui' with quotes, 1.5 without.
         found = "empty" if pd.isna(value) else repr(value)
         text = f"Actif must be True or False (found: {found})"
         problems.append(Problem(sheet, _excel_row(index), text))
@@ -186,11 +185,12 @@ def _check_actif(table: pd.DataFrame, sheet: str, problems: list[Problem]) -> No
 
 def _check_unique_ids(table: pd.DataFrame, sheet: str, problems: list[Problem]) -> None:
     """Add a problem for each row whose Id is also used by another row."""
-    # duplicated(keep=False) segna con True TUTTE le righe il cui valore compare più di una
-    # volta (con il default keep="first" la prima resterebbe False, e non la segnaleremmo).
-    # "&" combina due maschere: True solo dove sono vere ENTRAMBE (un "and" elemento per
-    # elemento). Gli Id vuoti li segnala già _check_not_empty, quindi li escludiamo.
-    # Le PARENTESI sono obbligatorie: & ha precedenza più alta dei confronti.
+    # duplicated(keep=False) marks as True ALL the rows whose value appears more than once
+    # (with the default keep="first" the first one would stay False and not be reported).
+    # "&" combines two masks: True only where BOTH are true (an element-wise "and").
+    # Empty Ids are already reported by _check_not_empty, so they are excluded here.
+    # When comparisons are combined with & in one line, PARENTHESES are required:
+    # & has a higher precedence than comparisons.
     ids = table["Id"]
     duplicated = ids.duplicated(keep=False) & ids.notna()
     for index in table.index[duplicated]:
@@ -201,12 +201,12 @@ def _check_unique_ids(table: pd.DataFrame, sheet: str, problems: list[Problem]) 
 def _check_date_order(table: pd.DataFrame, sheet: str, problems: list[Problem]) -> None:
     """Add a problem for each row whose DateFin is before its DateDebut."""
     if "DateDebut" not in table.columns or "DateFin" not in table.columns:
-        return  # nel foglio Projets le date non sono obbligatorie
-    # Confrontiamo solo le righe con ENTRAMBE le date: quelle vuote le segnala già
-    # _check_not_empty, e confrontare una data con un valore vuoto non ha senso.
+        return  # in the Projets sheet the dates are optional
+    # Only rows with BOTH dates are compared: empty ones are already reported by
+    # _check_not_empty, and comparing a date with an empty value makes no sense.
     both = table["DateDebut"].notna() & table["DateFin"].notna()
-    # table.loc[maschera] = solo le righe in cui la maschera vale True (una tabella più piccola,
-    # che conserva gli indici originali).
+    # table.loc[mask] = only the rows where the mask is True (a smaller table, which keeps
+    # the original indexes).
     dated = table.loc[both]
     wrong = dated["DateFin"] < dated["DateDebut"]
     for index in dated.index[wrong]:
@@ -224,10 +224,10 @@ def _check_references(
     problems: list[Problem],
 ) -> None:
     """Add a problem for each value of table[column] that is not one of valid_ids."""
-    # pd.Series = UNA colonna di pandas (un DataFrame è un insieme di Series con un nome).
-    # isin(valori): maschera True dove il valore della cella è tra i valori dati. Con "~"
-    # otteniamo quelli che NON ci sono. Le celle vuote non sono un riferimento sbagliato
-    # (es. Projet vuoto = nessun progetto; Source vuota la segnala già _check_not_empty).
+    # pd.Series = ONE pandas column (a DataFrame is a set of named Series).
+    # isin(values): mask that is True where the cell value is among the given values. With
+    # "~" we get the ones that are NOT. Empty cells are not a wrong reference (e.g. an empty
+    # Projet = no project; an empty Source is already reported by _check_not_empty).
     values = table[column]
     unknown = ~values.isin(valid_ids) & values.notna()
     for index in table.index[unknown]:

@@ -2,56 +2,56 @@
 
 A pasta factory with a few processes, the IT systems that support them and
 the data flows between them. One project replaces an old system with a new
-one, so the picture changes after this trasformation project is over.
+one, so the picture changes after this transformation project is over.
 
 Run from the project folder:
 
     python scripts/make_sample_data.py
 """
 
-# Il testo tra """...""" qui sopra è la DOCSTRING del modulo: la documentazione del file.
-# Python la conserva, e help() e VSCode la mostrano. Va messa in cima al file, oppure subito
-# dopo "def" o "class": negli altri punti è solo una stringa che Python valuta e ignora.
+# The text between """...""" above is the module DOCSTRING: the documentation of the file.
+# Python keeps it, and help() and VSCode show it. It goes at the top of the file, or right
+# after "def" or "class": anywhere else it is just a string that Python evaluates and ignores.
 
-# IMPORT
-# - "import X" è simile a #include, ma crea anche un namespace: pandas.DataFrame, come std::vector.
-# - "from X import Y" porta direttamente il nome Y: si scrive date(...) e non datetime.date(...)
-#   (simile a "using std::vector;").
-# - "as pd" è un alias; "pd" per pandas è una convenzione universale.
-# - Ordine: prima la libreria standard, riga vuota, poi le librerie esterne
-#   (Ruff lo corregge da solo al salvataggio).
+# IMPORTS
+# - "import X" is similar to #include, but also creates a namespace: pandas.DataFrame, like
+#   std::vector.
+# - "from X import Y" brings in the name Y directly: you write date(...) and not
+#   datetime.date(...) (similar to "using std::vector;").
+# - "as pd" is an alias; "pd" for pandas is a universal convention.
+# - Order: standard library first, empty line, then external libraries
+#   (Ruff fixes it by itself on save).
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
 
 # Where the file is written: <project folder>/data/sample_pastificio.xlsx
-# L'operatore "/" tra percorsi non è una divisione: Path lo RIDEFINISCE per unire i pezzi di un
-# percorso (operator overloading, come std::string con "+"). Funziona su Windows e Linux.
+# The "/" operator between paths is not a division: Path REDEFINES it to join the pieces of a
+# path (operator overloading, like std::string with "+"). It works on Windows and Linux.
 OUTPUT_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
-"""__file__ è il percorso di questo script,.resolve() lo rende un percorso assoluto,
-il primo .parent è la cartella scripts/;
-il secondo .parent è la cartella del progetto 
-/ "data" / "sample_pastificio.xlsx" aggiunge. 
-Perché non scrivere semplicemente "data/sample_pastificio.xlsx"? Perché un percorso relativo 
-dipende da dove lanci il programma. Partendo da __file__, lo script trova la cartella data/ da 
-qualunque posizione.
+"""__file__ is the path of this script, .resolve() makes it an absolute path,
+the first .parent is the scripts/ folder;
+the second .parent is the project folder;
+/ "data" / "sample_pastificio.xlsx" appends the rest.
+Why not simply write "data/sample_pastificio.xlsx"? Because a relative path
+depends on where you launch the program from. Starting from __file__, the script finds the
+data/ folder from any location.
 """
 # Validity used for things that "always" exist
-# date(anno, mese, giorno) crea un oggetto data (come std::chrono::year_month_day, ma più semplice).
+# date(year, month, day) creates a date object (like std::chrono::year_month_day, but simpler).
 ALWAYS_START = date(2026, 1, 1)
 ALWAYS_END = date(2100, 12, 31)
 
 # Column names of each sheet, in French like the real working file.
 # Cells we don't fill stay empty: the program will use the defaults
 # from the "Parametres" sheet.
-"""Creo le liste. Python non ha const quindi l a convenzione è scrivere i nomi TUTTO_MAIUSCOLO: 
-vuol dire "non modificarmi"."""
-# [...] è una LISTA: l'equivalente di std::vector, ma può contenere oggetti di tipo qualsiasi
-# e cresce da sola.
-# La virgola dopo l'ultimo elemento ("trailing comma") dice a Ruff "tieni questa lista su più
-# righe": un elemento per riga. Più lungo, ma nei diff di Git aggiungere una colonna cambia
-# una sola riga.
+"""I create the lists. Python has no const, so the convention is to write the names in
+ALL_CAPS: it means "don't modify me"."""
+# [...] is a LIST: the equivalent of std::vector, but it can hold objects of any type and
+# grows by itself.
+# The comma after the last element ("trailing comma") tells Ruff "keep this list on several
+# lines": one element per line. Longer, but in Git diffs adding a column changes a single line.
 NODE_COLUMNS = [
     "Id",
     "Libelle",
@@ -98,34 +98,34 @@ MIGRATION_START = date(2027, 3, 1)
 MIGRATION_END = date(2027, 3, 31)
 
 # Border and fill color of the processes, by domain
-# {chiave: valore} è un DIZIONARIO, simile a std::map<std::string, ...>; i valori possono
-# essere di tipi diversi nello stesso dizionario.
-# ("#2F8F2F", "#EAF7EA") è una TUPLA: come una lista ma IMMUTABILE (simile a std::pair/tuple).
-# COLORI "#RRGGBB": esadecimale RGB, come in HTML/CSS. Ogni coppia va da 00 a FF (0-255, come
-# un uint8_t). Es. #2B8CBE = rosso 43, verde 140, blu 190 -> azzurro. Maiuscole o minuscole
-# sono uguali. VSCode mostra accanto un quadratino colorato (color decorator) e cliccandolo
-# si apre un selettore di colore. Molti colori vengono da ColorBrewer (colorbrewer2.org).
+# {key: value} is a DICTIONARY, similar to std::map<std::string, ...>; values of different
+# types can live in the same dictionary.
+# ("#2F8F2F", "#EAF7EA") is a TUPLE: like a list but IMMUTABLE (similar to std::pair/tuple).
+# "#RRGGBB" COLORS: hexadecimal RGB, as in HTML/CSS. Each pair goes from 00 to FF (0-255, like
+# a uint8_t). E.g. #2B8CBE = red 43, green 140, blue 190 -> light blue. Upper and lower case
+# are the same. VSCode shows a small colored square next to it (color decorator), and clicking
+# it opens a color picker. Many colors come from ColorBrewer (colorbrewer2.org).
 DOMAIN_COLORS = {
-    "Production": ("#2F8F2F", "#EAF7EA"),  # tupla
+    "Production": ("#2F8F2F", "#EAF7EA"),  # tuple
     "Sales": ("#C51B8A", "#FDE0EF"),
 }
 
-"""a storia che i dati raccontano: oggi gli ordini dei clienti si gestiscono con dei fogli Excel. 
-Il progetto "Online shop" li sostituisce 
-con un WebShop a partire dal 1° aprile 2027. A marzo 2027 c'è un mese di migrazione 
-dei dati dal vecchio al nuovo sistema. Confrontando ottobre 2026 con giugno 2027,
- il grafo delle differenze mostrerà i fogli Excel in rosso e il WebShop in verde."""
+"""The story the data tells: today customer orders are handled with Excel spreadsheets.
+The "Online shop" project replaces them
+with a WebShop from April 1st, 2027. In March 2027 there is one month of data migration
+from the old to the new system. Comparing October 2026 with June 2027,
+the graph of the changes will show the spreadsheets in red and the WebShop in green."""
 
-# sto definendo 3 funzioni per avere i dizionari di questi oggetti con lo stile che voglio
-# in modo da distinguerli.
+# I am defining 3 functions to get the dictionaries of these objects with the style I want,
+# so that they can be told apart.
 """
-NOTA id_ con il trattino basso: id è già il nome di una funzione di Python. Chiamare un parametro 
-id la "nasconderebbe". Il trattino basso finale è la convenzione per evitarlo, come class_ 
-o type_
+NOTE id_ with the underscore: id is already the name of a Python function. Calling a
+parameter id would "hide" it. The trailing underscore is the convention to avoid that, like
+class_ or type_
 """
-# FUNZIONI: "def nome(parametri):". Come in C++ ma senza tipi e senza { }: il corpo è definito
-# dall'INDENTAZIONE (4 spazi). Nessun tipo di ritorno dichiarato: "return" restituisce
-# qualsiasi cosa (qui un dizionario = una riga dell'Excel).
+# FUNCTIONS: "def name(parameters):". Like C++ but without types and without { }: the body is
+# defined by INDENTATION (4 spaces). No declared return type: "return" returns anything
+# (here a dictionary = one row of the Excel file).
 
 
 def macro_process(id_, label, domain):
@@ -145,11 +145,11 @@ def macro_process(id_, label, domain):
     }
 
 
-# nella mia azienda i macro pro sono production e sales.
+# in my company the macro processes are production and sales.
 
 
 def process(id_, label, domain):
-    # UNPACKING: "spacchetta" la tupla in due variabili in un colpo solo.
+    # UNPACKING: "unpacks" the tuple into two variables in one go.
     # In C++17: auto [border, fill] = DOMAIN_COLORS[domain];
     border, fill = DOMAIN_COLORS[domain]
     return {
@@ -167,20 +167,22 @@ def process(id_, label, domain):
     }
 
 
-# i processi di sales sono customer orders, invoicing. il customer crea il processo
-# di production planning , parte del macro processo production.
+# the sales processes are customer orders and invoicing. The customer triggers the
+# production planning process, part of the production macro process.
 
-# PARAMETRI CON DEFAULT: start=ALWAYS_START si può omettere nella chiamata, come in C++.
-# ARGOMENTI CON NOME: nella chiamata si può scrivere project="PRJ_SHOP" e saltare quelli che
-# non servono (es. end resta al default). In C++ non si può.
-# I default qui sono DATE (immutabili), quindi va bene. Trappola da evitare (Ruff B006):
-# un default MUTABILE come items=[] viene creato UNA volta sola e si "ricorda" le chiamate
-# precedenti. Soluzione: items=None e poi "if items is None: items = []".
-# None è il "niente" di Python (simile a nullptr): nell'Excel diventa una cella vuota.
+# PARAMETERS WITH DEFAULTS: start=ALWAYS_START can be left out in the call, as in C++.
+# KEYWORD ARGUMENTS: in the call you can write project="PRJ_SHOP" and skip the ones you don't
+# need (e.g. end keeps its default). In C++ you cannot.
+# The defaults here are DATES (immutable), so that is fine. Trap to avoid (Ruff B006):
+# a MUTABLE default like items=[] is created only ONCE and "remembers" the previous calls.
+# Solution: items=None and then "if items is None: items = []".
+# None is Python's "nothing" (similar to nullptr): in the Excel file it becomes an empty cell.
 
 
-def system(id_, label, domain, start=ALWAYS_START, end=ALWAYS_END, project=None):  # nota il default
-    # é che non ci sono progetti che modificano.
+def system(
+    id_, label, domain, start=ALWAYS_START, end=ALWAYS_END, project=None
+):  # note the default
+    # is that there are no projects changing it.
     return {
         "Id": id_,
         "Libelle": label,
@@ -197,10 +199,10 @@ def system(id_, label, domain, start=ALWAYS_START, end=ALWAYS_END, project=None)
     }
 
 
-# i sistemi sono usati dai processi. il sistema per prodcution planning è millcontrol.
-# il sistema per invoicing è billing che è con la banca come vendor.
+# systems are used by processes. The system for production planning is MillControl.
+# The system for invoicing is BillingPro, which works with the bank as a vendor.
 
-NODES = [  # è una list di dizionari, ogni dizionario è un nodo del grafo=una riga dell'Excel
+NODES = [  # a list of dictionaries: each dictionary is a node of the graph = one Excel row
     macro_process("MP_PROD", "Production", "Production"),
     macro_process("MP_SALES", "Sales", "Sales"),
     process("P_PLAN", "Production\nplanning", "Production"),
@@ -208,15 +210,15 @@ NODES = [  # è una list di dizionari, ogni dizionario è un nodo del grafo=una 
     process("P_INVOICE", "Invoicing", "Sales"),
     system("MILL", "MillControl", "Production"),
     system("BILLING", "BillingPro", "Sales"),
-    # Old system: used until the day before the go-live: gli ordini sono gestiti con excel.
+    # Old system: used until the day before the go-live: orders are handled in Excel.
     system("SHEETS", "Order\nspreadsheets", "Sales", end=MIGRATION_END, project="PRJ_SHOP"),
     # New system: installed one month before the go-live, to receive the old data.
-    # il progetto SHOP cambia questo sistema.
+    # The SHOP project changes this system.
     system("SHOP", "WebShop", "Sales", start=MIGRATION_START, project="PRJ_SHOP"),
-    # External system: style left empty on purpose, the program must use the defaults. Non usa
-    # system() proprio perché deve avere lo stile vuoto: è il caso di prova per i valori
-    # predefiniti di Parametres. Le chiavi che mancano nel dizionario (Shape, Color…)
-    # diventeranno celle vuote quando pandas costruirà la tabella excel
+    # External system: style left empty on purpose, the program must use the defaults. It does
+    # not use system() precisely because it must have an empty style: it is the test case for
+    # the default values in Parametres. The keys missing from the dictionary (Shape, Color…)
+    # will become empty cells when pandas builds the Excel table
     {
         "Id": "BANK",
         "Libelle": "Bank\n(external)",
@@ -234,9 +236,9 @@ NODES = [  # è una list di dizionari, ogni dizionario è un nodo del grafo=una 
 
 MACRO_BLUE = "#2B8CBE"
 
-# Solo source e target sono obbligatori, tutto il resto ha un default: le frecce semplici si
-# scrivono in una riga, link("P_PLAN", "MILL"), quelle speciali indicano solo ciò che cambia.
-# La definizione è su più righe perché non sta in 100 caratteri: Ruff l'ha divisa così.
+# Only source and target are required, everything else has a default: simple arrows fit on
+# one line, link("P_PLAN", "MILL"), special ones only state what changes.
+# The definition spans several lines because it does not fit in 100 characters: Ruff split it.
 
 
 def link(
@@ -260,8 +262,8 @@ def link(
         "Libelle": label,
         "TypeFlux": flow_type,
         "Direction": "forward",
-        # (la colonna "Domaine" dei link resta vuota di proposito: qui non serve, e il
-        # programma deve comunque accettarla vuota)
+        # (the "Domaine" column of the links is left empty on purpose: it is not needed here,
+        # and the program must accept it empty anyway)
         "Style": style,
         "Color": color,
         "Penwidth": penwidth,
@@ -274,10 +276,10 @@ def link(
     }
 
 
-# ARGOMENTI POSIZIONALI + CON NOME insieme: i primi vanno IN ORDINE (source, target, label),
-# gli altri PER NOME e in qualsiasi ordine. Regola: prima i posizionali, poi quelli con nome.
-# "\n" nelle etichette è un a capo, come in C++: Graphviz scriverà l'etichetta su due righe.
-# Accenti ("échange de données"): in Python 3 tutte le stringhe sono Unicode, funzionano e basta.
+# POSITIONAL + KEYWORD ARGUMENTS together: the first ones go IN ORDER (source, target, label),
+# the others BY NAME and in any order. Rule: positional ones first, then keyword ones.
+# "\n" in labels is a line break, as in C++: Graphviz will write the label on two lines.
+# Accents ("échange de données"): in Python 3 all strings are Unicode, they just work.
 LINKS = [
     # Macro process -> its processes (thick blue lines)
     link("MP_PROD", "P_PLAN", color=MACRO_BLUE, penwidth=2),
@@ -331,10 +333,10 @@ PROJECTS = [
 ]
 
 # (name, value, description): general settings of the graph and default styles
-# Lista di TUPLE: ogni parametro ha sempre 3 valori, e una tupla è perfetta per un "record"
-# corto e fisso (più compatta di un dizionario con 3 chiavi ripetute 11 volte).
-# La colonna Valeur contiene TIPI DIVERSI (testo, numeri, una data): in Excel è normale,
-# il programma dovrà convertirla a seconda del parametro.
+# A list of TUPLES: each parameter always has 3 values, and a tuple is perfect for a short,
+# fixed "record" (more compact than a dictionary with 3 keys repeated 11 times).
+# The Valeur column holds DIFFERENT TYPES (text, numbers, a date): normal in Excel, the
+# program will have to convert it depending on the parameter.
 PARAMETERS = [
     ("GraphLabel", "Pastificio - IT landscape (fictional data)", "Title on top of the graph"),
     ("Layout", "dot", "Graphviz layout engine"),
@@ -354,21 +356,21 @@ PARAMETERS = [
 # ---------------------------------------------------------------------------
 
 
-# "def main()" è solo una CONVENZIONE per tenere il codice "da eseguire" in un posto ordinato:
-# in Python non esiste un main() speciale come in C++ (vedi l'"if" in fondo al file).
+# "def main()" is just a CONVENTION to keep the code "to run" in one tidy place:
+# in Python there is no special main() as in C++ (see the "if" at the end of the file).
 def main():
-    # DataFrame = la tabella di pandas (righe e colonne con un nome, un foglio Excel in memoria).
-    # Da una lista di dizionari: ogni dizionario diventa una riga. "columns=" impone l'elenco e
-    # l'ordine delle colonne: quelle che un dizionario non ha (es. Shape per BANK) restano vuote.
-    # Da una lista di tuple (PARAMETERS) basta dare i nomi delle colonne.
+    # DataFrame = the pandas table (rows and named columns, an Excel sheet in memory).
+    # From a list of dictionaries: each dictionary becomes a row. "columns=" sets the list and
+    # order of the columns: those a dictionary does not have (e.g. Shape for BANK) stay empty.
+    # From a list of tuples (PARAMETERS) it is enough to give the column names.
     #
-    # LIST COMPREHENSION (qui non serve, ma la troverai ovunque). Questo ciclo:
+    # LIST COMPREHENSION (not needed here, but you will find it everywhere). This loop:
     #     names = []
     #     for name, value, text in PARAMETERS:
     #         names.append(name)
-    # si scrive in una riga:
+    # is written in one line:
     #     names = [name for name, value, text in PARAMETERS]
-    # Con un filtro: [n for n in NODES if n["Actif"]]. In C++: std::transform / ranges (C++20).
+    # With a filter: [n for n in NODES if n["Actif"]]. In C++: std::transform / ranges (C++20).
     sheets = {
         "Noeuds": pd.DataFrame(NODES, columns=NODE_COLUMNS),
         "Liens": pd.DataFrame(LINKS, columns=LINK_COLUMNS),
@@ -376,24 +378,24 @@ def main():
         "Parametres": pd.DataFrame(PARAMETERS, columns=["Parametre", "Valeur", "Description"]),
     }
 
-    # CONTEXT MANAGER "with": all'uscita dal blocco il file viene chiuso e salvato, anche se
-    # dentro c'è un errore. È il RAII del C++ (un std::ofstream che si chiude nel distruttore).
+    # CONTEXT MANAGER "with": when leaving the block the file is closed and saved, even if an
+    # error happens inside. It is C++ RAII (a std::ofstream closing in its destructor).
     with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
-        # .items() dà le coppie (chiave, valore) del dizionario; l'unpacking le separa subito.
+        # .items() gives the (key, value) pairs of the dictionary; unpacking splits them.
         # In C++: for (auto& [name, table] : sheets)
         for name, table in sheets.items():
             table.to_excel(writer, sheet_name=name, index=False)
 
-    # F-STRING: la "f" davanti permette di inserire espressioni tra { } (come std::format C++20).
-    # len() restituisce la lunghezza di qualsiasi contenitore: qui il numero di righe.
+    # F-STRING: the "f" in front allows inserting expressions between { } (like std::format
+    # in C++20). len() returns the length of any container: here the number of rows.
     print(f"Created {OUTPUT_FILE.name}")
     for name, table in sheets.items():
         print(f"  {name}: {len(table)} rows")
 
 
-# In Python TUTTO il codice di un file viene eseguito quando il file viene caricato, anche
-# quando viene importato da un altro file. __name__ vale "__main__" solo se il file è stato
-# LANCIATO direttamente (python scripts/make_sample_data.py). Così l'Excel viene creato solo
-# lanciando lo script, non se un test lo importa per leggere NODES.
+# In Python ALL the code of a file runs when the file is loaded, even when it is imported by
+# another file. __name__ is "__main__" only if the file was LAUNCHED directly
+# (python scripts/make_sample_data.py). This way the Excel file is created only when the
+# script is launched, not when a test imports it to read NODES.
 if __name__ == "__main__":
     main()

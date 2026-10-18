@@ -21,39 +21,39 @@ def sample_graph(day: date) -> Graph:
 
 def attributes_of(source: str, start: str) -> str:
     """Return the DOT text from `start` (e.g. 'BANK [') up to the closing ']'."""
-    # NON si può cercare "la riga di BANK": se l'etichetta ha un a capo ("Bank\n(external)")
-    # la descrizione del nodo occupa DUE righe del testo DOT, e gli attributi sono sulla
-    # seconda. (Era il bug della prima versione di questi test.)
-    # str.index(testo, da) = posizione in cui testo compare, cercando a partire da "da".
-    # SLICING source[a:b] = la parte di stringa dalla posizione a (inclusa) alla b (esclusa),
-    # come std::string::substr(a, b - a) in C++.
+    # You CANNOT look for "the line of BANK": if the label has a newline ("Bank\n(external)")
+    # the description of the node takes TWO lines of DOT text, and the attributes are on the
+    # second one. (That was the bug of the first version of these tests.)
+    # str.index(text, start) = position where text appears, searching from "start" on.
+    # SLICING source[a:b] = the part of the string from position a (included) to b
+    # (excluded), like std::string::substr(a, b - a) in C++.
     begin = source.index(start)
     end = source.index("]", begin)
     return source[begin:end]
 
 
-# La maggior parte dei test controlla il TESTO DOT (dot.source): non serve eseguire Graphviz,
-# quindi sono veloci e funzionano anche su un computer dove Graphviz non è installato.
-# PROVE FATTE (mutation testing): se lo stile delle frecce si perde, fallisce
-# test_migration_edge_is_dashed; senza html.escape fallisce
-# test_special_characters_are_escaped_in_the_legend.
-# LEZIONE: quando un test fallisce, prima di "aggiustare" il codice guarda il dato vero.
-# Qui la prima versione dei test era sbagliata (cercava gli attributi su una sola riga),
-# mentre il codice era giusto.
+# Most tests check the DOT TEXT (dot.source): there is no need to run Graphviz, so they are
+# fast and also work on a computer where Graphviz is not installed.
+# CHECKS DONE (mutation testing): if the edge style gets lost,
+# test_migration_edge_is_dashed fails; without html.escape,
+# test_special_characters_are_escaped_in_the_legend fails.
+# LESSON: when a test fails, look at the real data before "fixing" the code.
+# Here the first version of the tests was wrong (it looked for the attributes on a single
+# line), while the code was right.
 def test_dot_contains_all_nodes_and_edges() -> None:
     source = to_dot(sample_graph(date(2026, 10, 8))).source
 
     for node_id in ["MP_PROD", "P_PLAN", "MILL", "SHEETS", "BANK"]:
         assert node_id in source
     assert "MP_PROD -> P_PLAN" in source
-    assert "SHOP" not in source  # a questa data il WebShop non esiste
+    assert "SHOP" not in source  # on this date the WebShop does not exist
 
 
 def test_graph_settings_and_title() -> None:
     source = to_dot(sample_graph(date(2026, 10, 8))).source
 
     assert "rankdir=LR" in source
-    assert "08.10.2026" in source  # data nel titolo, in formato svizzero
+    assert "08.10.2026" in source  # date in the title, in Swiss format
 
 
 def test_default_style_reaches_the_drawing() -> None:
@@ -68,7 +68,7 @@ def test_migration_edge_is_dashed() -> None:
     assert "style=dashed" in attributes_of(source, "SHEETS -> SHOP [")
 
 
-# --- Legenda ---------------------------------------------------------------------------
+# --- Legend -----------------------------------------------------------------------------
 
 
 def test_legend_is_in_the_title_label() -> None:
@@ -78,7 +78,7 @@ def test_legend_is_in_the_title_label() -> None:
     assert "Macro processus" in source
     assert "Processus · Production" in source
     assert "Système · default style" in source
-    assert 'BGCOLOR="#FDBB84"' in source  # il quadratino arancione dei sistemi
+    assert 'BGCOLOR="#FDBB84"' in source  # the orange square of the systems
 
 
 def empty_graph(legend: list[LegendEntry]) -> Graph:
@@ -100,7 +100,7 @@ def test_no_legend_when_there_is_nothing_to_explain() -> None:
 
 
 def test_special_characters_are_escaped_in_the_legend() -> None:
-    # "&" in un'etichetta HTML va scritto "&amp;": altrimenti Graphviz non legge la tabella.
+    # "&" in an HTML label must be written "&amp;": otherwise Graphviz cannot read the table.
     source = to_dot(empty_graph([LegendEntry("R&D", "#000000", "#FFFFFF")])).source
 
     assert "R&amp;D" in source
@@ -113,18 +113,18 @@ def test_comparison_title_and_removed_node() -> None:
     source = to_dot(graph).source
 
     assert "Changes 08.10.2026 → 01.06.2027" in source
-    assert "dashed" in attributes_of(source, "SHEETS [")  # nodo sparito: bordo tratteggiato
+    assert "dashed" in attributes_of(source, "SHEETS [")  # removed node: dashed border
 
 
-# SKIPIF: questo test esegue davvero Graphviz. Se dot.exe non è installato (es. sul computer
-# di qualcun altro), pytest lo SALTA invece di farlo fallire, e lo dice nel riepilogo ("s").
-# shutil.which("dot") cerca il programma come farebbe il terminale: None se non lo trova.
+# SKIPIF: this test really runs Graphviz. If dot.exe is not installed (e.g. on someone
+# else's computer), pytest SKIPS it instead of failing, and says so in the summary ("s").
+# shutil.which("dot") looks for the program as the terminal would: None if not found.
 @pytest.mark.skipif(shutil.which("dot") is None, reason="Graphviz (dot) is not installed")
 def test_render_svg_writes_a_file(tmp_path: Path) -> None:
-    output = tmp_path / "sub" / "graph.svg"  # anche la cartella "sub" va creata
+    output = tmp_path / "sub" / "graph.svg"  # the "sub" folder must be created too
 
     render_svg(sample_graph(date(2026, 10, 8)), output)
 
     assert output.exists()
-    # read_text legge il file come testo; un SVG è testo XML che contiene il tag <svg.
+    # read_text reads the file as text; an SVG is XML text that contains the <svg tag.
     assert "<svg" in output.read_text(encoding="utf-8")
