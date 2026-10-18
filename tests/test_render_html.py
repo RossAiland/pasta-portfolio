@@ -1,0 +1,112 @@
+"""Tests for pasta.render_html."""
+
+import json
+import re
+from dataclasses import replace
+from datetime import date
+from pathlib import Path
+
+from pasta.loader import load_excel
+from pasta.model import Graph, LegendEntry, build_graph
+from pasta.render_html import render_html, to_html
+from pasta.timeline import compare, take_snapshot
+
+SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
+
+# Questi test NON eseguono Graphviz: la pagina HTML la genera pyvis in Python, e il disegno
+# vero lo fa vis.js nel browser. Quindi funzionano su qualsiasi computer.
+# PROVA FATTA (mutation testing): se Bootstrap non viene tolto, fallisce
+# test_page_is_self_contained.
+
+
+def sample_graph(day: date) -> Graph:
+    data = load_excel(SAMPLE_FILE)
+    return build_graph(take_snapshot(data, day), data.parameters)
+
+
+def comparison_graph() -> Graph:
+    data = load_excel(SAMPLE_FILE)
+    return build_graph(compare(data, date(2026, 10, 8), date(2027, 6, 1)), data.parameters)
+
+
+def vis_data(html: str, what: str) -> list[dict]:
+    """Return the nodes or edges that the page gives to vis.js, as Python dictionaries."""
+    # Nella pagina pyvis scrive:  nodes = new vis.DataSet([ {...}, {...} ]);
+    # L'espressione regolare cattura (con le parentesi tonde) la lista tra DataSet( e );
+    #   \. e \( \[  = i caratteri "." "(" "[" veri e propri (senza "\" avrebbero un significato
+    #                speciale nelle espressioni regolari);
+    #   .*?        = qualsiasi testo, il più CORTO possibile ("?" = non "goloso");
+    #   re.S       = "." vale anche per gli a capo.
+    # .group(1) = il testo catturato; json.loads lo trasforma da JSON a liste/dizionari Python.
+    match = re.search(rf"{what} = new vis\.DataSet\((\[.*?\])\);", html, re.S)
+    assert match is not None
+    return json.loads(match.group(1))
+
+
+def by_id(items: list[dict], node_id: str) -> dict:
+    return next(item for item in items if item["id"] == node_id)
+
+
+def test_page_is_self_contained() -> None:
+    html = to_html(sample_graph(date(2026, 10, 8)))
+
+    # Nessuna risorsa caricata da internet (Bootstrap tolto, vis.js incluso nel file).
+    assert 'src="http' not in html
+    assert 'href="http' not in html
+    assert "vis.Network" in html  # il JavaScript di vis.js c'è
+
+
+def test_all_visible_nodes_and_edges_are_in_the_page() -> None:
+    html = to_html(sample_graph(date(2026, 10, 8)))
+
+    assert len(vis_data(html, "nodes")) == 9
+    assert len(vis_data(html, "edges")) == 8
+
+
+def test_node_style_is_translated_for_vis_js() -> None:
+    nodes = vis_data(to_html(sample_graph(date(2026, 10, 8))), "nodes")
+
+    mill = by_id(nodes, "MILL")
+    assert mill["shape"] == "box"  # rectangle -> box
+    assert mill["color"] == {"border": "#F03B20", "background": "#FDBB84"}
+    assert mill["shapeProperties"]["borderRadius"] == 6  # "rounded" -> angoli arrotondati
+    assert by_id(nodes, "P_PLAN")["shape"] == "ellipse"
+    assert by_id(nodes, "MP_PROD")["shapeProperties"]["borderRadius"] == 0  # non arrotondato
+
+
+def test_removed_elements_are_dashed() -> None:
+    html = to_html(comparison_graph())
+
+    assert by_id(vis_data(html, "nodes"), "SHEETS")["shapeProperties"]["borderDashes"] is True
+    removed_edge = next(e for e in vis_data(html, "edges") if e["to"] == "SHEETS")
+    assert removed_edge["dashes"] is True
+
+
+def test_title_subtitle_and_legend() -> None:
+    html = to_html(comparison_graph())
+
+    assert "Pastificio - IT landscape (fictional data)" in html
+    assert "Changes 08.10.2026 → 01.06.2027" in html
+    assert "Processus · Production" in html
+    assert "Removed" in html
+
+
+def test_layout_direction_follows_rankdir() -> None:
+    # replace(graph, rankdir="TB"): stesso grafo, ma dall'alto in basso (TB -> UD in vis.js).
+    graph = replace(sample_graph(date(2026, 10, 8)), rankdir="TB")
+
+    assert '"direction": "UD"' in to_html(graph)
+
+
+def test_special_characters_are_escaped() -> None:
+    graph = replace(sample_graph(date(2026, 10, 8)), legend=[LegendEntry("R&D", "#000", "#FFF")])
+
+    assert "R&amp;D" in to_html(graph)
+
+
+def test_render_html_writes_a_utf8_file(tmp_path: Path) -> None:
+    output = tmp_path / "sub" / "graph.html"
+
+    render_html(sample_graph(date(2026, 10, 8)), output)
+
+    assert "Système" in output.read_text(encoding="utf-8")  # accenti salvati correttamente

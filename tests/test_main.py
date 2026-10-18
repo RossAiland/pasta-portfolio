@@ -32,8 +32,11 @@ def test_run_draws_the_snapshot_of_the_configured_date(tmp_path: Path) -> None:
 
     written = run(config)
 
-    assert written == [tmp_path / "out" / "snapshot_2027-03-15.svg"]
-    assert written[0].exists()
+    out = tmp_path / "out"
+    # Ogni grafo viene disegnato due volte: immagine statica (SVG) e pagina interattiva (HTML).
+    assert written == [out / "snapshot_2027-03-15.svg", out / "snapshot_2027-03-15.html"]
+    # all(...) con una generator expression: True se TUTTI i file esistono.
+    assert all(path.exists() for path in written)
 
 
 @needs_graphviz
@@ -54,9 +57,11 @@ def test_run_also_draws_the_comparison_when_configured(tmp_path: Path) -> None:
     # [p.name for p in written]: solo i nomi dei file, senza la cartella.
     assert [p.name for p in written] == [
         "snapshot_2026-10-08.svg",
+        "snapshot_2026-10-08.html",
         "compare_2026-10-08_2027-06-01.svg",
+        "compare_2026-10-08_2027-06-01.html",
     ]
-    assert "Changes" in written[1].read_text(encoding="utf-8")  # il sottotitolo del confronto
+    assert "Changes" in written[2].read_text(encoding="utf-8")  # il sottotitolo del confronto
 
 
 def test_missing_date_reference_is_an_error() -> None:

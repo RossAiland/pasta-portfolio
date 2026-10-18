@@ -24,8 +24,9 @@ import graphviz
 
 from pasta.config import ConfigError, load_config
 from pasta.loader import LoadError, load_excel
-from pasta.model import build_graph
+from pasta.model import Graph, build_graph
 from pasta.render_graphviz import render_svg
+from pasta.render_html import render_html
 from pasta.timeline import compare, take_snapshot
 from pasta.validation import DataValidationError, validate
 
@@ -64,16 +65,28 @@ def run(config_path: Path) -> list[Path]:
     graph = build_graph(take_snapshot(data, day), data.parameters)
     # Il nome del file contiene la data in formato ANNO-MESE-GIORNO: così, in ordine
     # alfabetico, i file risultano anche in ordine di data.
-    written = [render_svg(graph, config.output_dir / f"snapshot_{day:%Y-%m-%d}.svg")]
+    written = _draw(graph, config.output_dir, f"snapshot_{day:%Y-%m-%d}")
 
     # 2. Il confronto tra due date, solo se il config ha la sezione [compare].
     #    config.py garantisce che before e after ci sono entrambe o mancano entrambe.
     if config.compare_before and config.compare_after:
         before, after = config.compare_before, config.compare_after
         comparison = build_graph(compare(data, before, after), data.parameters)
-        name = f"compare_{before:%Y-%m-%d}_{after:%Y-%m-%d}.svg"
-        written.append(render_svg(comparison, config.output_dir / name))
+        name = f"compare_{before:%Y-%m-%d}_{after:%Y-%m-%d}"
+        # "+=" su una lista aggiunge in fondo TUTTI gli elementi dell'altra lista
+        # (come vector::insert(end, ...) in C++).
+        written += _draw(comparison, config.output_dir, name)
     return written
+
+
+def _draw(graph: Graph, folder: Path, name: str) -> list[Path]:
+    """Draw the graph twice: static image (SVG) and interactive page (HTML)."""
+    # Stesso Graph, due disegnatori: è qui che si vede l'idea "un'interfaccia, due
+    # implementazioni" del modello.
+    return [
+        render_svg(graph, folder / f"{name}.svg"),
+        render_html(graph, folder / f"{name}.html"),
+    ]
 
 
 def _date_reference(parameters: dict[str, object]) -> date:
