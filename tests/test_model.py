@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from pasta.loader import load_excel
-from pasta.model import FALLBACK, Graph, Node, build_graph
+from pasta.model import FALLBACK, Graph, LegendEntry, Node, build_graph
 from pasta.timeline import Snapshot, take_snapshot
 
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
@@ -16,6 +16,8 @@ DAY = date(2026, 10, 8)
 # PROVA FATTA (mutation testing): con _cell_or che restituisce sempre la cella (ignorando
 # i default) falliscono 4 test su 7. In quel caso un colore vuoto diventerebbe la STRINGA
 # "nan" (str(NaN) dà "nan") e Graphviz riceverebbe un colore inesistente.
+# Con _legend_label che restituisce sempre solo il tipo (mai dominio né "default style")
+# falliscono i 2 test sulle etichette della legenda.
 
 
 @pytest.fixture
@@ -86,3 +88,65 @@ def test_missing_parametres_use_the_fallback() -> None:
     assert (a.shape, a.color, a.fillcolor) == ("box", "#555555", "#FFFFFF")
     assert graph.layout == "dot"
     assert graph.edges == []
+
+
+# --- Legenda ---------------------------------------------------------------------------
+
+
+def test_legend_explains_every_node_color(graph: Graph) -> None:
+    # Una voce per ogni (tipo, colori), nell'ordine dell'Excel. Il tipo con più aspetti
+    # (Processus) prende il dominio; BANK, senza colori propri, "default style".
+    assert graph.legend == [
+        LegendEntry("Macro processus", "#2B8CBE", "#2B8CBE"),
+        LegendEntry("Processus · Production", "#2F8F2F", "#EAF7EA"),
+        LegendEntry("Processus · Sales", "#C51B8A", "#FDE0EF"),
+        LegendEntry("Système", "#F03B20", "#FDBB84"),
+        LegendEntry("Système · default style", "#555555", "#F8F8F8"),
+    ]
+
+
+def test_every_node_color_is_in_the_legend(graph: Graph) -> None:
+    # Controllo generale: nessun colore del disegno resta senza spiegazione.
+    # Set comprehension con TUPLE: l'insieme delle coppie (bordo, riempimento).
+    node_colors = {(node.color, node.fillcolor) for node in graph.nodes}
+    legend_colors = {(entry.color, entry.fillcolor) for entry in graph.legend}
+
+    assert node_colors == legend_colors
+
+
+def test_no_domain_when_a_color_is_shared_by_several_domains() -> None:
+    # Due sistemi con lo stesso colore ma domini diversi, più un terzo con un altro colore:
+    # il tipo ha due aspetti, ma il colore arancione non appartiene a un solo dominio.
+    nodes = pd.DataFrame(
+        [
+            {
+                "Id": "A",
+                "Libelle": "A",
+                "TypeElement": "Système",
+                "Domaine": "Sales",
+                "Color": "#F03B20",
+                "Fillcolor": "#FDBB84",
+            },
+            {
+                "Id": "B",
+                "Libelle": "B",
+                "TypeElement": "Système",
+                "Domaine": "Production",
+                "Color": "#F03B20",
+                "Fillcolor": "#FDBB84",
+            },
+            {
+                "Id": "C",
+                "Libelle": "C",
+                "TypeElement": "Système",
+                "Domaine": "Sales",
+                "Color": "#000000",
+                "Fillcolor": "#FFFFFF",
+            },
+        ]
+    )
+    links = pd.DataFrame(columns=["Source", "Cible"])
+
+    graph = build_graph(Snapshot(day=DAY, nodes=nodes, links=links), parameters={})
+
+    assert [entry.label for entry in graph.legend] == ["Système", "Système · Sales"]

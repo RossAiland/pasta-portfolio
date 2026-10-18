@@ -1,5 +1,6 @@
 """Turn a snapshot (pandas tables) into simple Node and Edge objects with a resolved style."""
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 
@@ -47,6 +48,9 @@ class Node:
     penwidth: float  # spessore del bordo
     domain: str | None = None
     project: str | None = None
+    # True se le celle Color e Fillcolor erano VUOTE e i colori vengono dai default
+    # (es. BANK): serve alla legenda per scrivere "default style".
+    uses_default_colors: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,27 @@ class Edge:
     data: str | None = None  # colonna "Données": quali dati passano (utile come tooltip)
 
 
+# LEGENDA. Cosa spiega (scelta dell'utente): TUTTI I COLORI dei nodi, cioè una voce per ogni
+# combinazione "tipo di elemento + colori" che compare nel disegno, nell'ordine dell'Excel.
+# Etichetta = il tipo (Macro processus, Processus, Système...). Se lo stesso tipo ha più
+# aspetti, si aggiunge:
+#   - il DOMINIO, se quel colore appartiene a un solo dominio ("Processus · Production");
+#   - "default style", se gli elementi non hanno colori propri ("Système · default style").
+# È costruita DAI DATI, non scritta a mano: mostra solo ciò che compare davvero nel grafo,
+# così funziona anche con il file reale. Il calcolo sta qui nel modello, così i due
+# disegnatori (Graphviz e HTML) mostrano la stessa legenda.
+# (Prima versione, poi sostituita su richiesta: colori dei domini + tipi di flusso.)
+LEGEND_SEPARATOR = " · "
+DEFAULT_STYLE_LABEL = "default style"
+
+
+@dataclass(frozen=True)
+class LegendEntry:
+    label: str  # es. "Processus · Production"
+    color: str  # bordo
+    fillcolor: str  # riempimento
+
+
 @dataclass(frozen=True)
 class Graph:
     title: str
@@ -72,6 +97,7 @@ class Graph:
     # list[Node]: una lista di Node. In C++: std::vector<Node>.
     nodes: list[Node]
     edges: list[Edge]
+    legend: list[LegendEntry]  # voci della legenda (vedi sopra)
 
 
 def build_graph(snapshot: Snapshot, parameters: dict[str, object]) -> Graph:
@@ -97,7 +123,50 @@ def build_graph(snapshot: Snapshot, parameters: dict[str, object]) -> Graph:
         fontname=str(settings["Fontname"]),
         nodes=nodes,
         edges=edges,
+        legend=_legend(nodes),
     )
+
+
+def _legend(nodes: list[Node]) -> list[LegendEntry]:
+    """Return one legend entry per (element type, colors) that appears in the graph."""
+    # 1. Si raggruppano i nodi per ASPETTO: chiave = (tipo, bordo, riempimento).
+    #    setdefault(chiave, []) restituisce la lista di quella chiave e, se la chiave non c'è
+    #    ancora, la crea vuota: così si può fare .append() subito, senza un if.
+    #    I dizionari conservano l'ORDINE DI INSERIMENTO (da Python 3.7): la legenda elenca le
+    #    voci nell'ordine in cui compaiono nell'Excel. (std::map in C++ invece ordina per chiave.)
+    #    Una TUPLA può essere chiave di un dizionario perché è immutabile (una lista no).
+    groups: dict[tuple[str, str, str], list[Node]] = {}
+    for node in nodes:
+        groups.setdefault((node.kind, node.color, node.fillcolor), []).append(node)
+
+    # 2. Quanti aspetti diversi ha ogni tipo? Counter (libreria standard "collections") CONTA
+    #    quante volte compare ogni valore: Counter(["Processus", "Processus", "Système"])
+    #    -> {"Processus": 2, "Système": 1}.
+    #    "for kind, _, _ in groups": scorrere un dizionario dà le sue CHIAVI (qui le tuple),
+    #    che spacchettiamo; "_" è il nome convenzionale per "valore che non mi serve".
+    looks_per_kind = Counter(kind for kind, _, _ in groups)
+
+    # 3. Una voce per gruppo. .items() dà le coppie (chiave, valore); la chiave è a sua volta
+    #    una tupla, spacchettata con le parentesi: ((kind, color, fillcolor), members).
+    return [
+        LegendEntry(_legend_label(kind, members, looks_per_kind[kind] > 1), color, fillcolor)
+        for (kind, color, fillcolor), members in groups.items()
+    ]
+
+
+def _legend_label(kind: str, members: list[Node], kind_has_several_looks: bool) -> str:
+    """Return the legend text of a group of nodes that look the same."""
+    # all(...) è True se la condizione vale per TUTTI gli elementi (any(...): per almeno uno).
+    # Come std::all_of / std::any_of in C++.
+    if all(node.uses_default_colors for node in members):
+        return f"{kind}{LEGEND_SEPARATOR}{DEFAULT_STYLE_LABEL}"
+    if kind_has_several_looks:
+        # SET COMPREHENSION: l'insieme dei domini del gruppo, senza duplicati.
+        domains = {node.domain for node in members}
+        if len(domains) == 1 and None not in domains:
+            # next(iter(insieme)) = l'unico elemento dell'insieme (un set non ha posizioni [0]).
+            return f"{kind}{LEGEND_SEPARATOR}{next(iter(domains))}"
+    return kind
 
 
 def _make_node(row: dict, settings: dict[str, object]) -> Node:
@@ -116,6 +185,8 @@ def _make_node(row: dict, settings: dict[str, object]) -> Node:
         penwidth=float(_cell_or(row.get("Penwidth"), settings["NodeDefaultPenwidth"])),
         domain=_text_or_none(row.get("Domaine")),
         project=_text_or_none(row.get("Projet")),
+        # "and" tra due booleani: True solo se ENTRAMBE le celle di colore sono vuote.
+        uses_default_colors=bool(pd.isna(row.get("Color")) and pd.isna(row.get("Fillcolor"))),
     )
 
 
