@@ -1,7 +1,8 @@
-"""Choose the nodes and links that exist at a given date."""
+"""Choose the nodes and links that exist at a given date, and compare two dates."""
 
 from dataclasses import dataclass
 from datetime import date
+from enum import Enum
 
 import pandas as pd
 
@@ -25,6 +26,103 @@ class Snapshot:
     day: date
     nodes: pd.DataFrame
     links: pd.DataFrame
+
+    # PROPRIETÀ: un metodo che si usa COME UN CAMPO, senza parentesi: snapshot.subtitle
+    # (non snapshot.subtitle()). Il valore viene calcolato ogni volta dai campi.
+    # @property è un decoratore, come @dataclass. In C++ sarebbe un metodo getter const.
+    @property
+    def subtitle(self) -> str:
+        """Text shown under the title of the drawing."""
+        # FORMATO DELLA DATA nella f-string: dopo ":" si scrive come formattarla.
+        # %d = giorno, %m = mese, %Y = anno a 4 cifre -> "08.10.2026" (formato svizzero).
+        # In C++ sarebbe std::format("{:%d.%m.%Y}", day).
+        return f"{self.day:%d.%m.%Y}"
+
+
+# ---------------------------------------------------------------------------------------
+# Confronto tra due date
+# ---------------------------------------------------------------------------------------
+# ALGORITMO (teoria degli insiemi): prima = chiavi esistenti alla data "before",
+# dopo = chiavi esistenti alla data "after".
+#   unchanged = prima & dopo   (intersezione: c'è in entrambe)
+#   added     = dopo - prima   (differenza: c'è solo dopo)
+#   removed   = prima - dopo   (c'è solo prima)
+# CHIAVI: un nodo è identificato dal suo Id; un link dalla tupla (Source, Cible, TypeFlux)
+# (i link non hanno un Id nell'Excel).
+
+
+# ENUM: un insieme CHIUSO di valori con un nome, come "enum class" in C++. Rispetto alle
+# stringhe evita errori di battitura: Status.ADDED scritto male dà subito un errore, mentre
+# "addded" passerebbe inosservato. Il valore ("added") serve quando va mostrato come testo.
+class Status(Enum):
+    UNCHANGED = "unchanged"
+    ADDED = "added"
+    REMOVED = "removed"
+
+
+NODE_KEY = ["Id"]
+LINK_KEY = ["Source", "Cible", "TypeFlux"]
+
+
+@dataclass
+class Comparison:
+    """The union of two snapshots, with a "Status" column on every node and link."""
+
+    before: date
+    after: date
+    nodes: pd.DataFrame
+    links: pd.DataFrame
+
+    @property
+    def subtitle(self) -> str:
+        """Text shown under the title of the drawing."""
+        # "→" è il carattere freccia →, scritto con il suo codice Unicode.
+        return f"Changes {self.before:%d.%m.%Y} → {self.after:%d.%m.%Y}"
+
+
+def compare(data: InputData, before: date, after: date) -> Comparison:
+    """Return what is unchanged, added and removed between two dates."""
+    old = take_snapshot(data, before)
+    new = take_snapshot(data, after)
+    return Comparison(
+        before=before,
+        after=after,
+        nodes=_union_with_status(old.nodes, new.nodes, NODE_KEY),
+        links=_union_with_status(old.links, new.links, LINK_KEY),
+    )
+
+
+def _keys(table: pd.DataFrame, key: list[str]) -> list[tuple]:
+    """Return the key of every row, as a tuple (one per row, in the same order)."""
+    # fillna(""): una cella vuota (NaN) nella chiave diventa "". Serve perché NaN != NaN:
+    # due link con TypeFlux vuoto non risulterebbero "uguali" in un insieme.
+    # itertuples(index=False, name=None) dà ogni riga come una TUPLA semplice di valori.
+    return list(table[key].fillna("").itertuples(index=False, name=None))
+
+
+def _union_with_status(old: pd.DataFrame, new: pd.DataFrame, key: list[str]) -> pd.DataFrame:
+    """Return the rows of new (unchanged or added) and of old (removed), with a Status."""
+    old_keys = set(_keys(old, key))
+    new_keys = set(_keys(new, key))
+
+    # Righe di "dopo": unchanged se la chiave c'era anche prima, altrimenti added.
+    # (Per le righe unchanged teniamo quella di "dopo": è lo stato più recente.)
+    new_status = [
+        Status.UNCHANGED if row_key in old_keys else Status.ADDED for row_key in _keys(new, key)
+    ]
+    # Righe di "prima" la cui chiave NON c'è più dopo: removed.
+    # Maschera da una lista di booleani: pd.Series(lista, index=...) usa gli stessi indici
+    # della tabella, così .loc[maschera] seleziona le righe giuste.
+    gone = pd.Series([row_key not in new_keys for row_key in _keys(old, key)], index=old.index)
+    removed = old.loc[gone]
+
+    # assign(Colonna=valori) restituisce una NUOVA tabella con la colonna in più.
+    # pd.concat([a, b]) mette le due tabelle una sotto l'altra (come unire due vector);
+    # ignore_index=True rinumera le righe 0, 1, 2... (gli indici originali qui non servono).
+    return pd.concat(
+        [new.assign(Status=new_status), removed.assign(Status=Status.REMOVED)],
+        ignore_index=True,
+    )
 
 
 def take_snapshot(data: InputData, day: date) -> Snapshot:

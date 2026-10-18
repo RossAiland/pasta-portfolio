@@ -9,7 +9,7 @@ import pytest
 from pasta.loader import load_excel
 from pasta.model import Graph, LegendEntry, build_graph
 from pasta.render_graphviz import render_svg, to_dot
-from pasta.timeline import take_snapshot
+from pasta.timeline import compare, take_snapshot
 
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
 
@@ -85,7 +85,7 @@ def empty_graph(legend: list[LegendEntry]) -> Graph:
     """A graph without nodes, only to test the title and the legend."""
     return Graph(
         title="Title",
-        day=date(2026, 10, 8),
+        subtitle="08.10.2026",
         layout="dot",
         rankdir="LR",
         fontname="Arial",
@@ -104,6 +104,16 @@ def test_special_characters_are_escaped_in_the_legend() -> None:
     source = to_dot(empty_graph([LegendEntry("R&D", "#000000", "#FFFFFF")])).source
 
     assert "R&amp;D" in source
+
+
+def test_comparison_title_and_removed_node() -> None:
+    data = load_excel(SAMPLE_FILE)
+    graph = build_graph(compare(data, date(2026, 10, 8), date(2027, 6, 1)), data.parameters)
+
+    source = to_dot(graph).source
+
+    assert "Changes 08.10.2026 → 01.06.2027" in source
+    assert "dashed" in attributes_of(source, "SHEETS [")  # nodo sparito: bordo tratteggiato
 
 
 # SKIPIF: questo test esegue davvero Graphviz. Se dot.exe non è installato (es. sul computer

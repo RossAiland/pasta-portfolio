@@ -102,10 +102,9 @@ def to_dot(graph: Graph) -> graphviz.Digraph:
 
 def _title_and_legend(graph: Graph) -> str:
     """Return the HTML-like label of the graph: title, date and legend."""
-    # FORMATO DELLA DATA nella f-string: dopo ":" si scrive come formattarla.
-    # %d = giorno, %m = mese, %Y = anno a 4 cifre -> "08.10.2026" (formato svizzero).
-    # In C++ sarebbe std::format("{:%d.%m.%Y}", day).
-    title_lines = [*graph.title.split("\n"), f"{graph.day:%d.%m.%Y}"]
+    # Sotto il titolo: la data dello snapshot, oppure "Changes <prima> → <dopo>" per un
+    # confronto (il testo lo prepara timeline.py, proprietà subtitle).
+    title_lines = [*graph.title.split("\n"), graph.subtitle]
     # [*lista, altro]: "*" spacchetta la lista dentro una lista nuova (come {**a} per i dict).
     title = "<BR/>".join(escape(line) for line in title_lines)
 

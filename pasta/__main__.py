@@ -26,7 +26,7 @@ from pasta.config import ConfigError, load_config
 from pasta.loader import LoadError, load_excel
 from pasta.model import build_graph
 from pasta.render_graphviz import render_svg
-from pasta.timeline import take_snapshot
+from pasta.timeline import compare, take_snapshot
 from pasta.validation import DataValidationError, validate
 
 DEFAULT_CONFIG = Path("config.toml")
@@ -53,18 +53,27 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run(config_path: Path) -> list[Path]:
-    """Read the configuration and the Excel file, check them, draw the graph."""
+    """Read the configuration and the Excel file, check them, draw the graph(s)."""
     config = load_config(config_path)
     data = load_excel(config.input_file)
     validate(data)  # si ferma qui (DataValidationError) se l'Excel ha errori
 
+    # 1. Il grafo a una data.
     # "a or b": la data del config, oppure (se è None) DateReference del foglio Parametres.
     day = config.snapshot_date or _date_reference(data.parameters)
     graph = build_graph(take_snapshot(data, day), data.parameters)
     # Il nome del file contiene la data in formato ANNO-MESE-GIORNO: così, in ordine
     # alfabetico, i file risultano anche in ordine di data.
-    output_file = config.output_dir / f"snapshot_{day:%Y-%m-%d}.svg"
-    return [render_svg(graph, output_file)]
+    written = [render_svg(graph, config.output_dir / f"snapshot_{day:%Y-%m-%d}.svg")]
+
+    # 2. Il confronto tra due date, solo se il config ha la sezione [compare].
+    #    config.py garantisce che before e after ci sono entrambe o mancano entrambe.
+    if config.compare_before and config.compare_after:
+        before, after = config.compare_before, config.compare_after
+        comparison = build_graph(compare(data, before, after), data.parameters)
+        name = f"compare_{before:%Y-%m-%d}_{after:%Y-%m-%d}.svg"
+        written.append(render_svg(comparison, config.output_dir / name))
+    return written
 
 
 def _date_reference(parameters: dict[str, object]) -> date:

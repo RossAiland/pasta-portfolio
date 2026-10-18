@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from pasta.loader import InputData, load_excel
-from pasta.timeline import Snapshot, take_snapshot
+from pasta.timeline import Comparison, Snapshot, Status, compare, take_snapshot
 
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
 
@@ -118,3 +118,90 @@ def test_link_is_hidden_when_one_of_its_nodes_is_hidden() -> None:
 
     assert link_pairs(take_snapshot(data, date(2026, 5, 1))) == {("A", "B")}
     assert link_pairs(take_snapshot(data, date(2026, 10, 1))) == set()
+
+
+# --- Confronto tra due date ------------------------------------------------------------
+
+BEFORE, AFTER = date(2026, 10, 8), date(2027, 6, 1)
+
+
+def ids_with(comparison: Comparison, status: Status) -> set[str]:
+    nodes = comparison.nodes
+    return set(nodes.loc[nodes["Status"] == status, "Id"])
+
+
+def pairs_with(comparison: Comparison, status: Status) -> set[tuple[str, str]]:
+    links = comparison.links.loc[comparison.links["Status"] == status]
+    return set(zip(links["Source"], links["Cible"], strict=True))
+
+
+def test_compare_finds_added_and_removed(data: InputData) -> None:
+    comparison = compare(data, BEFORE, AFTER)
+
+    assert ids_with(comparison, Status.ADDED) == {"SHOP"}
+    assert ids_with(comparison, Status.REMOVED) == {"SHEETS"}
+    assert ids_with(comparison, Status.UNCHANGED) == ALL_NODES - {"SHOP", "SHEETS"}
+    assert pairs_with(comparison, Status.ADDED) == {("P_ORDERS", "SHOP"), ("SHOP", "MILL")}
+    assert pairs_with(comparison, Status.REMOVED) == {("P_ORDERS", "SHEETS")}
+
+
+def test_compare_contains_each_row_once(data: InputData) -> None:
+    comparison = compare(data, BEFORE, AFTER)
+
+    # Unione dei due snapshot: ogni nodo compare UNA sola volta, qualunque sia lo stato.
+    # duplicated().any(): True se almeno un Id è ripetuto.
+    assert not comparison.nodes["Id"].duplicated().any()
+    assert set(comparison.nodes["Id"]) == ALL_NODES
+
+
+def test_compare_in_the_other_direction_swaps_added_and_removed(data: InputData) -> None:
+    comparison = compare(data, AFTER, BEFORE)
+
+    assert ids_with(comparison, Status.ADDED) == {"SHEETS"}
+    assert ids_with(comparison, Status.REMOVED) == {"SHOP"}
+
+
+def test_compare_same_day_changes_nothing(data: InputData) -> None:
+    comparison = compare(data, BEFORE, BEFORE)
+
+    # set(colonna) == {un solo valore}: tutte le righe hanno lo stesso stato.
+    assert set(comparison.nodes["Status"]) == {Status.UNCHANGED}
+    assert set(comparison.links["Status"]) == {Status.UNCHANGED}
+
+
+def test_link_with_empty_flow_type_is_still_matched() -> None:
+    # TypeFlux vuoto nella chiave del link: senza fillna("") (NaN != NaN) lo stesso link
+    # risulterebbe "removed" E "added" invece che "unchanged".
+    # ATTENZIONE: va usato float("nan"), cioè ciò che arriva davvero da una cella Excel vuota.
+    # La prima versione usava None, ma None == None è VERO: il test passava anche senza
+    # fillna e non proteggeva niente (scoperto con il mutation testing).
+    start, end = date(2026, 1, 1), date(2100, 12, 31)
+    data = InputData(
+        nodes=pd.DataFrame(
+            [{"Id": x, "Actif": True, "DateDebut": start, "DateFin": end} for x in ["A", "B"]]
+        ),
+        links=pd.DataFrame(
+            [
+                {
+                    "Source": "A",
+                    "Cible": "B",
+                    "TypeFlux": float("nan"),
+                    "Actif": True,
+                    "DateDebut": start,
+                    "DateFin": end,
+                }
+            ]
+        ),
+        projects=pd.DataFrame(),
+        parameters={},
+    )
+
+    comparison = compare(data, BEFORE, AFTER)
+
+    assert list(comparison.links["Status"]) == [Status.UNCHANGED]
+
+
+def test_subtitles() -> None:
+    empty = pd.DataFrame()
+    assert Snapshot(BEFORE, empty, empty).subtitle == "08.10.2026"
+    assert Comparison(BEFORE, AFTER, empty, empty).subtitle == "Changes 08.10.2026 → 01.06.2027"

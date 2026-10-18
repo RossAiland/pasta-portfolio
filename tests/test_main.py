@@ -44,6 +44,21 @@ def test_date_reference_is_used_when_the_config_has_no_date(tmp_path: Path) -> N
     assert written[0].name == "snapshot_2026-10-08.svg"
 
 
+@needs_graphviz
+def test_run_also_draws_the_comparison_when_configured(tmp_path: Path) -> None:
+    compare_section = "[compare]\nbefore = 2026-10-08\nafter = 2027-06-01\n"
+    config = write_config(tmp_path, SAMPLE_FILE, compare_section)
+
+    written = run(config)
+
+    # [p.name for p in written]: solo i nomi dei file, senza la cartella.
+    assert [p.name for p in written] == [
+        "snapshot_2026-10-08.svg",
+        "compare_2026-10-08_2027-06-01.svg",
+    ]
+    assert "Changes" in written[1].read_text(encoding="utf-8")  # il sottotitolo del confronto
+
+
 def test_missing_date_reference_is_an_error() -> None:
     with pytest.raises(ConfigError, match="DateReference"):
         _date_reference({})

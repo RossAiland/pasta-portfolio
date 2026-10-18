@@ -8,7 +8,7 @@ import pytest
 
 from pasta.loader import load_excel
 from pasta.model import FALLBACK, Graph, LegendEntry, Node, build_graph
-from pasta.timeline import Snapshot, take_snapshot
+from pasta.timeline import Snapshot, Status, compare, take_snapshot
 
 SAMPLE_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_pastificio.xlsx"
 DAY = date(2026, 10, 8)
@@ -18,6 +18,8 @@ DAY = date(2026, 10, 8)
 # "nan" (str(NaN) dà "nan") e Graphviz riceverebbe un colore inesistente.
 # Con _legend_label che restituisce sempre solo il tipo (mai dominio né "default style")
 # falliscono i 2 test sulle etichette della legenda.
+# Con _status_colors che restituisce sempre l'arancione dei sistemi (lo stato non cambia i
+# colori) falliscono i 3 test sui colori di added/removed.
 
 
 @pytest.fixture
@@ -36,7 +38,7 @@ def node(graph: Graph, node_id: str) -> Node:
 
 def test_graph_settings_come_from_parametres(graph: Graph) -> None:
     assert graph.title == "Pastificio - IT landscape (fictional data)"
-    assert graph.day == DAY
+    assert graph.subtitle == "08.10.2026"
     assert (graph.layout, graph.rankdir, graph.fontname) == ("dot", "LR", "Arial")
 
 
@@ -150,3 +152,60 @@ def test_no_domain_when_a_color_is_shared_by_several_domains() -> None:
     graph = build_graph(Snapshot(day=DAY, nodes=nodes, links=links), parameters={})
 
     assert [entry.label for entry in graph.legend] == ["Système", "Système · Sales"]
+
+
+# --- Confronto tra due date ------------------------------------------------------------
+
+
+@pytest.fixture
+def comparison_graph() -> Graph:
+    data = load_excel(SAMPLE_FILE)
+    return build_graph(compare(data, DAY, date(2027, 6, 1)), data.parameters)
+
+
+def test_comparison_subtitle(comparison_graph: Graph) -> None:
+    assert comparison_graph.subtitle == "Changes 08.10.2026 → 01.06.2027"
+
+
+def test_added_and_removed_nodes_get_the_status_colors(comparison_graph: Graph) -> None:
+    shop = node(comparison_graph, "SHOP")  # nato tra le due date
+    sheets = node(comparison_graph, "SHEETS")  # sparito
+    mill = node(comparison_graph, "MILL")  # rimasto
+
+    assert (shop.status, shop.color, shop.fillcolor) == (
+        Status.ADDED,
+        FALLBACK["AddedColor"],
+        FALLBACK["AddedFillcolor"],
+    )
+    assert sheets.status is Status.REMOVED
+    assert sheets.color == FALLBACK["RemovedColor"]
+    assert sheets.style.endswith(",dashed")  # bordo tratteggiato
+    assert mill.color == "#F03B20"  # i nodi rimasti tengono il loro colore
+
+
+def test_removed_edge_is_red_and_dashed(comparison_graph: Graph) -> None:
+    edge = next(e for e in comparison_graph.edges if (e.source, e.target) == ("P_ORDERS", "SHEETS"))
+
+    assert (edge.color, edge.style) == (FALLBACK["RemovedColor"], "dashed")
+
+
+def test_status_colors_can_be_changed_in_parametres() -> None:
+    data = load_excel(SAMPLE_FILE)
+    parameters = {**data.parameters, "AddedColor": "#0000FF"}
+
+    graph = build_graph(compare(data, DAY, date(2027, 6, 1)), parameters)
+
+    assert node(graph, "SHOP").color == "#0000FF"
+
+
+def test_comparison_legend_ends_with_added_and_removed(comparison_graph: Graph) -> None:
+    labels = [entry.label for entry in comparison_graph.legend]
+
+    # [-2:] = gli ultimi due elementi (slicing con indice negativo: si conta dalla fine).
+    assert labels[-2:] == ["Added", "Removed"]
+
+
+def test_snapshot_legend_has_no_status_entries(graph: Graph) -> None:
+    labels = [entry.label for entry in graph.legend]
+
+    assert "Added" not in labels and "Removed" not in labels
