@@ -7,8 +7,8 @@ import pandas as pd
 
 from pasta.timeline import Comparison, Snapshot, Status
 
-# PERCHÉ QUESTO MODULO: i due "disegnatori" (Graphviz al passo 7, HTML interattivo al
-# passo 10) ricevono lo STESSO elenco di Node/Edge e non devono sapere nulla di pandas,
+# PERCHÉ QUESTO MODULO: i due "disegnatori" (render_graphviz.py per l'SVG, render_html.py per
+# la pagina interattiva) ricevono lo STESSO elenco di Node/Edge e non devono sapere nulla di pandas,
 # NaN o valori di default. È l'idea "un'interfaccia, due implementazioni" del C++:
 # il modello è l'interfaccia comune, i disegnatori le implementazioni.
 #

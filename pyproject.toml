@@ -33,5 +33,9 @@ target-version = "py311"
 # B: common pitfalls, UP: suggest modern Python syntax
 select = ["E", "W", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+# W291 (trailing whitespace) only in the author's study notes inside this file
+"scripts/make_sample_data.py" = ["W291"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -17,7 +17,7 @@ from pasta.model import Graph
 #
 # UN'INTERFACCIA, DUE IMPLEMENTAZIONI: questo modulo riceve LO STESSO Graph di
 # render_graphviz.py e lo traduce nel "linguaggio" di vis.js. Timeline e modello non sono
-# stati toccati: è la prova che la separazione fatta al passo 6 funziona.
+# stati toccati: è la prova che la separazione fatta con model.py funziona.
 
 # Forme di Graphviz -> forme di vis.js. Le forme sconosciute diventano "box" (.get con default).
 SHAPES = {"rectangle": "box", "box": "box", "ellipse": "ellipse", "circle": "circle"}
